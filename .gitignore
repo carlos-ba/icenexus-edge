@@ -6,6 +6,7 @@ data/
 
 # Configuração do cliente (credenciais e dados do cliente)
 config/client_config.json
+config/.secret_key
 
 # Cache Python
 __pycache__/

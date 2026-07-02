@@ -6,30 +6,29 @@ Perfis:
   viewer — somente dashboard (leitura)
 
 Credenciais ficam em config/client_config.json → chave "usuarios".
-Chave secreta para assinar cookies: config → "secret_key" (gerada se ausente).
+Chave secreta para assinar cookies: config/.secret_key (arquivo separado).
 """
 
 import json
 import logging
-import os
 import secrets
 from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request, Response
-from fastapi.responses import RedirectResponse
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 logger = logging.getLogger("auth")
 
-_CONFIG_PATH = Path(__file__).parent.parent / "config" / "client_config.json"
-COOKIE_NAME  = "icenexus_session"
+_CONFIG_PATH  = Path(__file__).parent.parent / "config" / "client_config.json"
+_SECRET_PATH  = Path(__file__).parent.parent / "config" / ".secret_key"
+COOKIE_NAME   = "icenexus_session"
 SESSION_MAX_AGE = 60 * 60 * 12   # 12 horas
 
 router = APIRouter(tags=["Auth"])
 
 # ---------------------------------------------------------------------------
-# Config helpers
+# Config helpers — NUNCA grava em client_config.json
 # ---------------------------------------------------------------------------
 
 def _load_config() -> dict:
@@ -41,19 +40,16 @@ def _load_config() -> dict:
     return {}
 
 
-def _save_config(cfg: dict) -> None:
-    _CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    _CONFIG_PATH.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
 def _get_secret_key() -> str:
-    cfg = _load_config()
-    key = cfg.get("secret_key")
-    if not key:
-        key = secrets.token_hex(32)
-        cfg["secret_key"] = key
-        _save_config(cfg)
-        logger.info("Nova secret_key gerada e salva em client_config.json")
+    """Lê/gera a chave em config/.secret_key — nunca toca em client_config.json."""
+    if _SECRET_PATH.exists():
+        key = _SECRET_PATH.read_text(encoding="utf-8").strip()
+        if key:
+            return key
+    key = secrets.token_hex(32)
+    _SECRET_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _SECRET_PATH.write_text(key, encoding="utf-8")
+    logger.info("Nova secret_key gerada em config/.secret_key")
     return key
 
 
