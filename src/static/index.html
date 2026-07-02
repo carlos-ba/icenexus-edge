@@ -195,6 +195,35 @@
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ── Card sem sinal ── */
+  .inst-card.no-signal { opacity: .5; filter: grayscale(.6); }
+  .inst-card.no-signal::before { background: var(--muted); }
+  .card-status.no-signal { background: rgba(139,148,158,.15); color: var(--muted); }
+
+  /* ── Painel Admin ── */
+  #admin-panel {
+    display: none;
+    background: var(--surface); border: 1px solid rgba(255,209,102,.3);
+    border-radius: var(--radius); padding: 18px 22px;
+    margin-bottom: 24px;
+  }
+  #admin-panel.visible { display: block; }
+  .admin-panel-title {
+    font-size: 12px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .9px; color: var(--yellow); margin-bottom: 14px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .admin-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+  .admin-btn {
+    font-size: 13px; padding: 8px 18px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--card); color: var(--text);
+    transition: border-color .2s, background .2s;
+  }
+  .admin-btn:hover { border-color: var(--accent); background: rgba(0,180,216,.08); }
+  .admin-btn.danger:hover { border-color: var(--red); background: rgba(239,71,111,.08); color: var(--red); }
+  .admin-btn:disabled { opacity: .5; cursor: not-allowed; }
+  .admin-msg { font-size: 12px; color: var(--muted); margin-top: 10px; min-height: 16px; }
 </style>
 </head>
 <body>
@@ -240,6 +269,15 @@
       <span class="label">Alarmes Ativos</span>
       <span class="value crit" id="sumAlarms">—</span>
     </div>
+  </div>
+
+  <div id="admin-panel">
+    <div class="admin-panel-title">⚙ Ferramentas de Demonstração</div>
+    <div class="admin-btns">
+      <button class="admin-btn" id="btn-collect" onclick="adminCollect()">⚡ Coletar Agora</button>
+      <button class="admin-btn danger" id="btn-clear" onclick="adminClear()">🗑 Limpar Histórico</button>
+    </div>
+    <div class="admin-msg" id="admin-msg"></div>
   </div>
 
   <div id="grupos"></div>
@@ -291,7 +329,49 @@ async function initAuth() {
       badge.style.border     = '1px solid rgba(139,148,158,.2)';
     }
   }
+  if (user.role === 'admin') {
+    document.getElementById('admin-panel').classList.add('visible');
+  }
   return true;
+}
+
+async function adminCollect() {
+  const btn = document.getElementById('btn-collect');
+  const msg = document.getElementById('admin-msg');
+  btn.disabled = true;
+  msg.textContent = 'Disparando coleta...';
+  try {
+    const res = await fetch(`${API}/admin/collect-now`, { method: 'POST' });
+    if (res.ok) {
+      msg.textContent = '✅ Coleta disparada. Aguarde 5s e o dashboard atualizará.';
+      setTimeout(refresh, 5000);
+    } else {
+      msg.textContent = `Erro ${res.status}`;
+    }
+  } catch(e) {
+    msg.textContent = 'Falha na requisição.';
+  }
+  btn.disabled = false;
+}
+
+async function adminClear() {
+  if (!confirm('Apagar todo o histórico de leituras e alarmes? Os instrumentos serão mantidos.')) return;
+  const btn = document.getElementById('btn-clear');
+  const msg = document.getElementById('admin-msg');
+  btn.disabled = true;
+  msg.textContent = 'Limpando histórico...';
+  try {
+    const res = await fetch(`${API}/admin/clear-history`, { method: 'POST' });
+    if (res.ok) {
+      msg.textContent = '✅ Histórico limpo. Os instrumentos continuam cadastrados.';
+      await refresh();
+    } else {
+      msg.textContent = `Erro ${res.status}`;
+    }
+  } catch(e) {
+    msg.textContent = 'Falha na requisição.';
+  }
+  btn.disabled = false;
 }
 
 async function init() {
@@ -376,8 +456,10 @@ function renderCard(inst, grupo) {
   const isOnline = live.online !== false && live.has_data;
   const hasAlarm = alarms.length > 0;
 
+  const noSignal = !live.has_data;
   let cardClass = 'inst-card';
-  if (!isOnline) cardClass += ' offline';
+  if (noSignal) cardClass += ' no-signal';
+  else if (!isOnline) cardClass += ' offline';
   else if (hasAlarm) cardClass += ' alarm';
   else if (tempVal != null && inst.alarme_max != null && tempVal > inst.alarme_max) cardClass += ' warn';
 
@@ -391,8 +473,8 @@ function renderCard(inst, grupo) {
 
   const tempStr  = tempVal != null ? tempVal.toFixed(1) : '—';
   const setptStr = setpt   != null ? setpt.toFixed(1) + '°C' : '—';
-  const statusLabel = !isOnline ? 'offline' : hasAlarm ? 'alarme' : 'online';
-  const statusClass = !isOnline ? 'offline' : hasAlarm ? 'alarm'  : 'online';
+  const statusLabel = noSignal ? 'sem sinal' : !isOnline ? 'offline' : hasAlarm ? 'alarme' : 'online';
+  const statusClass = noSignal ? 'no-signal' : !isOnline ? 'offline' : hasAlarm ? 'alarm'  : 'online';
 
   const pillsHtml = [
     { key: 'refrigeration', label: '🔵 Refrig.',  cls: '' },

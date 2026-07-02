@@ -8,11 +8,11 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
-from sqlalchemy import select, desc, and_
+from sqlalchemy import select, desc, and_, delete
 
 from src.db import AsyncSessionFactory
 from src.models import AlarmEvent, Instrument, Reading
-from src.auth import require_auth
+from src.auth import require_auth, require_admin
 
 router = APIRouter(prefix="/api/v1", dependencies=[Depends(require_auth)])
 
@@ -543,6 +543,29 @@ async def save_client_config(body: dict) -> dict:
     from src.config_loader import save_config
     save_config(body)
     return {"status": "saved"}
+
+
+# ---------------------------------------------------------------------------
+# Admin — ferramentas de demonstração (somente admin)
+# ---------------------------------------------------------------------------
+
+@router.post("/admin/collect-now", dependencies=[Depends(require_admin)])
+async def admin_collect_now() -> dict:
+    """Dispara coleta imediata sem aguardar o próximo ciclo do scheduler."""
+    import asyncio
+    from src.collector import _collect_all
+    asyncio.create_task(_collect_all())
+    return {"status": "triggered", "timestamp": datetime.now(UTC).isoformat()}
+
+
+@router.post("/admin/clear-history", dependencies=[Depends(require_admin)])
+async def admin_clear_history() -> dict:
+    """Apaga readings e alarm_events; mantém a tabela de instrumentos intacta."""
+    async with AsyncSessionFactory() as session:
+        await session.execute(delete(AlarmEvent))
+        await session.execute(delete(Reading))
+        await session.commit()
+    return {"status": "cleared", "timestamp": datetime.now(UTC).isoformat()}
 
 
 # ---------------------------------------------------------------------------
