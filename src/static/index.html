@@ -272,7 +272,31 @@
 const API = '/api/v1';
 let histChart = null;
 
+async function doLogout() {
+  await fetch('/logout', { method: 'POST' });
+  window.location.replace('/login');
+}
+
+async function initAuth() {
+  const res = await fetch('/api/v1/me');
+  if (res.status === 401) { window.location.replace('/login'); return false; }
+  const user = await res.json();
+  const badge = document.getElementById('user-badge');
+  if (badge) {
+    const roleLabel = user.role === 'admin' ? 'Admin' : 'Visualização';
+    badge.textContent = `${user.username}  ·  ${roleLabel}`;
+    if (user.role !== 'admin') {
+      badge.style.background = 'rgba(139,148,158,.12)';
+      badge.style.color      = 'var(--muted)';
+      badge.style.border     = '1px solid rgba(139,148,158,.2)';
+    }
+  }
+  return true;
+}
+
 async function init() {
+  const ok = await initAuth();
+  if (!ok) return;
   await refresh();
   document.getElementById('loader').classList.add('hidden');
   setInterval(refresh, 5000);
@@ -281,6 +305,7 @@ async function init() {
 async function refresh() {
   try {
     const res = await fetch(`${API}/dashboard`);
+    if (res.status === 401) { window.location.replace('/login'); return; }
     if (!res.ok) throw new Error(res.status);
     const data = await res.json();
     render(data);
