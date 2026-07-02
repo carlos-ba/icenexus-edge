@@ -1,0 +1,14 @@
+{
+  "_modo": "automatico",
+  "_instrucoes": "Copie este arquivo para client_config.json e preencha com os dados do cliente.",
+  "cliente": "Nome do Cliente",
+  "unidade": "Unidade / Filial",
+  "instalacao": "2026-01-01",
+  "responsavel_tecnico": "Nome do Tecnico",
+  "sitrad": {
+    "url":  "https://localhost:8002",
+    "user": "usuario_api_sitrad",
+    "pass": "senha_api_sitrad"
+  },
+  "grupos": []
+}

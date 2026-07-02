@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IceNexus Edge</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:       #0d1117;
+    --surface:  #161b22;
+    --card:     #1c2128;
+    --border:   #30363d;
+    --accent:   #00b4d8;
+    --green:    #06d6a0;
+    --yellow:   #ffd166;
+    --red:      #ef476f;
+    --text:     #e6edf3;
+    --muted:    #8b949e;
+    --radius:   12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; min-height: 100vh; }
+
+  /* ── Header ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 60px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-icon { font-size: 22px; }
+  .brand-name { font-size: 18px; font-weight: 700; color: var(--accent); letter-spacing: .5px; }
+  .brand-sep  { color: var(--border); margin: 0 8px; }
+  .client-name { font-size: 14px; color: var(--muted); }
+  .header-right { display: flex; align-items: center; gap: 16px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .status-dot.offline { background: var(--red); box-shadow: 0 0 6px var(--red); }
+  .last-update { font-size: 12px; color: var(--muted); }
+  .mode-badge {
+    font-size: 11px; padding: 3px 8px; border-radius: 20px;
+    background: rgba(0,180,216,.15); color: var(--accent);
+    border: 1px solid rgba(0,180,216,.3);
+  }
+
+  /* ── Layout ── */
+  main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+
+  /* ── Summary bar ── */
+  .summary-bar {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 12px; margin-bottom: 24px;
+  }
+  .summary-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px 20px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .summary-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
+  .summary-card .value { font-size: 28px; font-weight: 700; }
+  .summary-card .value.ok   { color: var(--green); }
+  .summary-card .value.warn { color: var(--yellow); }
+  .summary-card .value.crit { color: var(--red); }
+  .summary-card .value.info { color: var(--accent); }
+
+  /* ── Grupo ── */
+  .grupo { margin-bottom: 28px; }
+  .grupo-header {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px; padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .grupo-icon { font-size: 18px; }
+  .grupo-nome { font-size: 16px; font-weight: 600; }
+  .grupo-count { font-size: 12px; color: var(--muted); margin-left: auto; }
+
+  /* ── Grid de cards ── */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+  }
+
+  /* ── Card instrumento ── */
+  .inst-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px;
+    cursor: pointer; transition: border-color .2s, transform .1s;
+    position: relative; overflow: hidden;
+  }
+  .inst-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .inst-card.alarm   { border-color: var(--red); }
+  .inst-card.warn    { border-color: var(--yellow); }
+  .inst-card.offline { opacity: .55; }
+  .inst-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--green); border-radius: var(--radius) var(--radius) 0 0;
+  }
+  .inst-card.alarm::before   { background: var(--red); }
+  .inst-card.warn::before    { background: var(--yellow); }
+  .inst-card.offline::before { background: var(--border); }
+
+  .card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
+  .card-name   { font-size: 13px; font-weight: 600; line-height: 1.3; flex: 1; }
+  .card-status {
+    font-size: 10px; padding: 2px 7px; border-radius: 20px;
+    font-weight: 600; white-space: nowrap; margin-left: 8px;
+  }
+  .card-status.online  { background: rgba(6,214,160,.15);  color: var(--green); }
+  .card-status.offline { background: rgba(239,71,111,.15); color: var(--red); }
+  .card-status.alarm   { background: rgba(239,71,111,.2);  color: var(--red); }
+
+  .card-temp { font-size: 42px; font-weight: 700; line-height: 1; margin-bottom: 4px; }
+  .card-temp .unit { font-size: 18px; font-weight: 400; color: var(--muted); }
+  .card-temp.ok   { color: var(--green); }
+  .card-temp.warn { color: var(--yellow); }
+  .card-temp.crit { color: var(--red); }
+  .card-temp.off  { color: var(--muted); font-size: 28px; }
+
+  .card-setpoint { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+  .card-setpoint span { color: var(--accent); }
+
+  .card-outputs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+  .output-pill {
+    font-size: 10px; padding: 2px 8px; border-radius: 20px;
+    border: 1px solid var(--border); color: var(--muted); transition: all .2s;
+  }
+  .output-pill.on         { border-color: var(--accent); color: var(--accent); background: rgba(0,180,216,.1); }
+  .output-pill.on.defrost { border-color: var(--yellow); color: var(--yellow); background: rgba(255,209,102,.1); }
+
+  .card-alarms { margin-top: 8px; }
+  .alarm-item {
+    font-size: 11px; color: var(--red);
+    display: flex; align-items: center; gap: 5px;
+    padding: 3px 0; border-top: 1px solid rgba(239,71,111,.15);
+  }
+  .alarm-item::before { content: '⚠'; font-size: 10px; }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.7); z-index: 200;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; width: 680px; max-width: 95vw;
+    max-height: 90vh; overflow-y: auto; padding: 28px;
+  }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .modal-title  { font-size: 18px; font-weight: 700; }
+  .modal-close  { background: none; border: none; color: var(--muted); font-size: 22px; cursor: pointer; }
+  .modal-close:hover { color: var(--text); }
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+  .detail-row  { background: var(--card); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
+  .detail-row .dl { font-size: 10px; text-transform: uppercase; color: var(--muted); letter-spacing: .6px; }
+  .detail-row .dv { font-size: 18px; font-weight: 600; }
+  .chart-container { position: relative; height: 180px; margin-bottom: 16px; }
+
+  /* ── Painel alarmes ── */
+  .alarm-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-top: 28px; overflow: hidden; }
+  .alarm-panel-header {
+    padding: 14px 18px; border-bottom: 1px solid var(--border);
+    font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px;
+  }
+  .alarm-panel-header .badge { background: var(--red); color: #fff; font-size: 10px; padding: 1px 7px; border-radius: 20px; font-weight: 700; }
+  .alarm-list { max-height: 200px; overflow-y: auto; }
+  .alarm-row {
+    padding: 10px 18px; border-bottom: 1px solid var(--border);
+    display: grid; grid-template-columns: 160px 1fr auto;
+    gap: 12px; align-items: center; font-size: 12px;
+  }
+  .alarm-row:last-child { border-bottom: none; }
+  .alarm-row .instr { color: var(--accent); font-weight: 600; }
+  .alarm-row .desc  { color: var(--text); }
+  .alarm-row .time  { color: var(--muted); white-space: nowrap; }
+  .alarm-row.active { background: rgba(239,71,111,.05); }
+  .no-alarms { padding: 20px 18px; color: var(--muted); font-size: 13px; text-align: center; }
+
+  /* ── Loader ── */
+  .loader {
+    position: fixed; inset: 0; background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 16px; z-index: 999; transition: opacity .4s;
+  }
+  .loader.hidden { opacity: 0; pointer-events: none; }
+  .loader-icon { font-size: 52px; animation: pulse 1.4s ease-in-out infinite; }
+  .loader-text { font-size: 14px; color: var(--muted); }
+  @keyframes pulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.12);opacity:.7} }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div class="loader" id="loader">
+  <div class="loader-icon">❄</div>
+  <div class="loader-text">Carregando IceNexus Edge...</div>
+</div>
+
+<header>
+  <div class="brand">
+    <span class="brand-icon">❄</span>
+    <span class="brand-name">IceNexus Edge</span>
+    <span class="brand-sep">|</span>
+    <span class="client-name" id="clientName">—</span>
+  </div>
+  <div class="header-right">
+    <span class="mode-badge" id="modeBadge">automático</span>
+    <span class="last-update" id="lastUpdate">—</span>
+    <div class="status-dot" id="statusDot"></div>
+  </div>
+</header>
+
+<main>
+  <div class="summary-bar">
+    <div class="summary-card">
+      <span class="label">Instrumentos</span>
+      <span class="value info" id="sumTotal">—</span>
+    </div>
+    <div class="summary-card">
+      <span class="label">Online</span>
+      <span class="value ok" id="sumOnline">—</span>
+    </div>
+    <div class="summary-card">
+      <span class="label">Offline</span>
+      <span class="value warn" id="sumOffline">—</span>
+    </div>
+    <div class="summary-card">
+      <span class="label">Alarmes Ativos</span>
+      <span class="value crit" id="sumAlarms">—</span>
+    </div>
+  </div>
+
+  <div id="grupos"></div>
+
+  <div class="alarm-panel">
+    <div class="alarm-panel-header">
+      ⚠ Ocorrências Recentes
+      <span class="badge" id="alarmBadge">0</span>
+    </div>
+    <div class="alarm-list" id="alarmList">
+      <div class="no-alarms">Nenhum alarme ativo</div>
+    </div>
+  </div>
+</main>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modalTitle">—</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="detail-grid" id="detailGrid"></div>
+    <div class="chart-container">
+      <canvas id="histChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '/api/v1';
+let histChart = null;
+
+async function init() {
+  await refresh();
+  document.getElementById('loader').classList.add('hidden');
+  setInterval(refresh, 5000);
+}
+
+async function refresh() {
+  try {
+    const res = await fetch(`${API}/dashboard`);
+    if (!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    render(data);
+    document.getElementById('statusDot').classList.remove('offline');
+    document.getElementById('lastUpdate').textContent =
+      'Atualizado ' + new Date().toLocaleTimeString('pt-BR');
+  } catch(e) {
+    document.getElementById('statusDot').classList.add('offline');
+    document.getElementById('lastUpdate').textContent = 'Sem conexão';
+  }
+}
+
+function render(data) {
+  let titulo = data.cliente || 'IceNexus Edge';
+  if (data.unidade) titulo += ' — ' + data.unidade;
+  document.getElementById('clientName').textContent = titulo;
+  document.title = titulo + ' | IceNexus';
+  document.getElementById('modeBadge').textContent =
+    data.modo === 'personalizado' ? '✦ personalizado' : '⚡ automático';
+
+  let total = 0, online = 0, offline = 0, alarms = 0;
+  for (const g of data.grupos || []) {
+    for (const inst of g.instrumentos || []) {
+      const live = inst._live || {};
+      total++;
+      if (live.online) online++; else offline++;
+      alarms += live.alarm_count || 0;
+    }
+  }
+  document.getElementById('sumTotal').textContent   = total;
+  document.getElementById('sumOnline').textContent  = online;
+  document.getElementById('sumOffline').textContent = offline;
+  document.getElementById('sumAlarms').textContent  = alarms;
+  document.getElementById('alarmBadge').textContent = alarms;
+
+  const gruposEl = document.getElementById('grupos');
+  gruposEl.innerHTML = '';
+  for (const grupo of data.grupos || []) gruposEl.appendChild(renderGrupo(grupo));
+
+  renderAlarmPanel(data.grupos || []);
+}
+
+function renderGrupo(grupo) {
+  const insts = grupo.instrumentos || [];
+  const el = document.createElement('div');
+  el.className = 'grupo';
+  el.innerHTML = `
+    <div class="grupo-header">
+      <span class="grupo-icon">${grupo.icone || '📡'}</span>
+      <span class="grupo-nome">${grupo.nome}</span>
+      <span class="grupo-count">${insts.length} instrumento${insts.length !== 1 ? 's' : ''}</span>
+    </div>
+    <div class="cards-grid"></div>
+  `;
+  const grid = el.querySelector('.cards-grid');
+  for (const inst of insts) grid.appendChild(renderCard(inst, grupo));
+  return el;
+}
+
+function renderCard(inst, grupo) {
+  const live    = inst._live || {};
+  const sensors = live.sensors || {};
+  const outputs = live.outputs || {};
+  const alarms  = live.active_alarms || [];
+  const sensor  = inst.sensor_principal || 't1';
+  const tempVal = sensors[sensor];
+  const setpt   = sensors.setpoint ?? inst.setpoint_ref;
+  const isOnline = live.online !== false && live.has_data;
+  const hasAlarm = alarms.length > 0;
+
+  let cardClass = 'inst-card';
+  if (!isOnline) cardClass += ' offline';
+  else if (hasAlarm) cardClass += ' alarm';
+  else if (tempVal != null && inst.alarme_max != null && tempVal > inst.alarme_max) cardClass += ' warn';
+
+  let tempClass = 'off';
+  if (isOnline && tempVal != null) {
+    if (hasAlarm) tempClass = 'crit';
+    else if ((inst.alarme_max != null && tempVal > inst.alarme_max) ||
+             (inst.alarme_min != null && tempVal < inst.alarme_min)) tempClass = 'warn';
+    else tempClass = 'ok';
+  }
+
+  const tempStr  = tempVal != null ? tempVal.toFixed(1) : '—';
+  const setptStr = setpt   != null ? setpt.toFixed(1) + '°C' : '—';
+  const statusLabel = !isOnline ? 'offline' : hasAlarm ? 'alarme' : 'online';
+  const statusClass = !isOnline ? 'offline' : hasAlarm ? 'alarm'  : 'online';
+
+  const pillsHtml = [
+    { key: 'refrigeration', label: '🔵 Refrig.',  cls: '' },
+    { key: 'fan',           label: '🌀 Vent.',     cls: '' },
+    { key: 'defrost',       label: '🔥 Degelo',    cls: 'defrost' },
+  ].filter(p => outputs[p.key] != null).map(p =>
+    `<span class="output-pill ${outputs[p.key] ? 'on ' + p.cls : ''}">${p.label}</span>`
+  ).join('');
+
+  const alarmsHtml = alarms.slice(0,3).map(a =>
+    `<div class="alarm-item">${a.description}</div>`
+  ).join('');
+
+  const el = document.createElement('div');
+  el.className = cardClass;
+  el.innerHTML = `
+    <div class="card-header">
+      <span class="card-name">${inst.nome_exibicao || live.name || '—'}</span>
+      <span class="card-status ${statusClass}">${statusLabel}</span>
+    </div>
+    <div class="card-temp ${tempClass}">
+      ${tempStr}<span class="unit">${tempVal != null ? '°C' : ''}</span>
+    </div>
+    <div class="card-setpoint">SP: <span>${setptStr}</span></div>
+    <div class="card-outputs">${pillsHtml}</div>
+    ${alarmsHtml ? `<div class="card-alarms">${alarmsHtml}</div>` : ''}
+  `;
+  el.addEventListener('click', () => openModal(inst, grupo));
+  return el;
+}
+
+function renderAlarmPanel(grupos) {
+  const list = document.getElementById('alarmList');
+  const all  = [];
+  for (const g of grupos)
+    for (const inst of g.instrumentos || [])
+      for (const a of (inst._live || {}).active_alarms || [])
+        all.push({ inst: inst.nome_exibicao || (inst._live || {}).name, ...a });
+
+  list.innerHTML = all.length
+    ? all.map(a => `
+        <div class="alarm-row active">
+          <span class="instr">${a.inst}</span>
+          <span class="desc">${a.description}</span>
+          <span class="time">${a.code}</span>
+        </div>`).join('')
+    : '<div class="no-alarms">✅ Nenhum alarme ativo</div>';
+}
+
+async function openModal(inst, grupo) {
+  const live    = inst._live || {};
+  const sensors = live.sensors || {};
+  const outputs = live.outputs || {};
+
+  document.getElementById('modalTitle').textContent =
+    (inst.nome_exibicao || live.name || '—') + ' — ' + grupo.nome;
+
+  const rows = [
+    { l: 'T1 — Sonda 1',   v: fmt(sensors.t1,       '°C') },
+    { l: 'T2 — Sonda 2',   v: fmt(sensors.t2,       '°C') },
+    { l: 'T3 — Sonda 3',   v: fmt(sensors.t3,       '°C') },
+    { l: 'Setpoint',        v: fmt(sensors.setpoint, '°C') },
+    { l: 'Compressor',      v: out(outputs.refrigeration) },
+    { l: 'Ventilador',      v: out(outputs.fan) },
+    { l: 'Degelo',          v: out(outputs.defrost) },
+    { l: 'Modelo',          v: live.model_name || '—' },
+    { l: 'Endereço RS-485', v: live.address ?? '—' },
+    { l: 'Status',          v: live.online ? '🟢 Online' : '🔴 Offline' },
+  ];
+  document.getElementById('detailGrid').innerHTML = rows.map(r =>
+    `<div class="detail-row"><span class="dl">${r.l}</span><span class="dv">${r.v}</span></div>`
+  ).join('');
+
+  document.getElementById('modalOverlay').classList.add('open');
+  if (live.id) loadHistory(live.id);
+}
+
+async function loadHistory(instrId) {
+  try {
+    const res  = await fetch(`${API}/instruments/${instrId}/history?limit=120`);
+    const data = await res.json();
+    const labels = data.map(r => new Date(r.timestamp).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }));
+    if (histChart) { histChart.destroy(); histChart = null; }
+    histChart = new Chart(document.getElementById('histChart').getContext('2d'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'T1 (°C)', data: data.map(r => r.t1), borderColor: '#00b4d8', backgroundColor: 'rgba(0,180,216,.08)', borderWidth: 2, pointRadius: 0, tension: .3, fill: true },
+          { label: 'Setpoint', data: data.map(r => r.setpoint), borderColor: '#ffd166', borderWidth: 1.5, borderDash: [5,3], pointRadius: 0 },
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#8b949e', font: { size: 11 } } } },
+        scales: {
+          x: { ticks: { color: '#8b949e', font: { size: 10 }, maxTicksLimit: 8 }, grid: { color: '#30363d' } },
+          y: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: '#30363d' } },
+        }
+      }
+    });
+  } catch(e) { console.error('Histórico:', e); }
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+  if (histChart) { histChart.destroy(); histChart = null; }
+}
+document.getElementById('modalOverlay').addEventListener('click', e => {
+  if (e.target.id === 'modalOverlay') closeModal();
+});
+
+function fmt(v, u) { return v != null ? v.toFixed(1) + u : '—'; }
+function out(v)    { return v == null ? '—' : v ? '✅ Ligado' : '⭕ Desligado'; }
+
+init();
+</script>
+</body>
+</html>

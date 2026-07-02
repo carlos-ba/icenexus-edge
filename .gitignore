@@ -1,0 +1,21 @@
+# Ambiente virtual
+.venv/
+
+# Banco de dados local
+data/
+
+# Configuração do cliente (credenciais e dados do cliente)
+config/client_config.json
+
+# Cache Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Logs
+*.log
+
+# PyInstaller
+dist/
+build/
+*.spec
