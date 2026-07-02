@@ -19,6 +19,7 @@ from src.db import init_db
 from src.api import router
 from src.demo import router as demo_router
 from src.collector import run_collect
+from src.auth import router as auth_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -68,6 +69,7 @@ app = FastAPI(
 )
 
 # API REST
+app.include_router(auth_router)
 app.include_router(router)
 app.include_router(demo_router)
 
@@ -78,3 +80,8 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 @app.get("/", include_in_schema=False)
 async def index():
     return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/login", include_in_schema=False)
+async def login_page():
+    return FileResponse(STATIC_DIR / "login.html")

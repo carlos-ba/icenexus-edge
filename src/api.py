@@ -6,14 +6,15 @@ Suporta TC-900E (temperatura) e PCT-122E Plus (refrigeração com pressão).
 from datetime import datetime, UTC, timedelta
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from sqlalchemy import select, desc, and_
 
 from src.db import AsyncSessionFactory
 from src.models import AlarmEvent, Instrument, Reading
+from src.auth import require_auth
 
-router = APIRouter(prefix="/api/v1")
+router = APIRouter(prefix="/api/v1", dependencies=[Depends(require_auth)])
 
 
 # ---------------------------------------------------------------------------

@@ -59,8 +59,53 @@ window.triggerAIFromAlarm = (...args) => triggerAIFromAlarm(...args);
 window.openDemoPanel      = (...args) => openDemoPanel(...args);
 window.closeDemoPanel     = (...args) => closeDemoPanel(...args);
 
+// ── Sessão / Auth ──────────────────────────────────────────────
+let _currentUser = null;   // { username, role }
+
+async function initAuth() {
+  try {
+    const res = await fetch('/api/v1/me');
+    if (res.status === 401) { window.location.replace('/login'); return false; }
+    _currentUser = await res.json();
+  } catch {
+    window.location.replace('/login');
+    return false;
+  }
+
+  // Mostra nome e perfil no header
+  const badge = $('user-badge');
+  if (badge) {
+    const roleLabel = _currentUser.role === 'admin' ? 'Admin' : 'Visualização';
+    badge.textContent = `${_currentUser.username}  ·  ${roleLabel}`;
+    if (_currentUser.role !== 'admin') {
+      badge.style.background = 'rgba(139,148,158,.12)';
+      badge.style.color      = 'var(--muted)';
+      badge.style.border     = '1px solid rgba(139,148,158,.2)';
+    }
+  }
+
+  // Esconde recursos de admin para viewer
+  if (_currentUser.role !== 'admin') {
+    const fab  = $('demo-fab');
+    const side = $('btn-normalize-sidebar');
+    if (fab)  fab.style.display  = 'none';
+    if (side) side.style.display = 'none';
+  }
+
+  return true;
+}
+
+async function doLogout() {
+  await fetch('/logout', { method: 'POST' });
+  window.location.replace('/login');
+}
+window.doLogout = doLogout;
+
 // ── Inicialização ──────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+  const ok = await initAuth();
+  if (!ok) return;
+
   await showOverview();                      // começa no overview
   setInterval(refreshOverview, 5_000);       // atualiza cards a cada 5s
   setInterval(loadInstruments, 15_000);      // atualiza sidebar a cada 15s

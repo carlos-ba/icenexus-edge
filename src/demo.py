@@ -13,17 +13,18 @@ import os
 import urllib.request
 from datetime import datetime, UTC
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, desc
 
 from src.db import AsyncSessionFactory
 from src.models import Instrument, Reading, AlarmEvent, DiagnosisCase
 from src.knowledge_base import build_knowledge_context
 from src.emulator_client import get_state as get_emulator_state
+from src.auth import require_admin
 
 logger = logging.getLogger("coletor.demo")
 
-router = APIRouter(prefix="/api/v1/demo", tags=["Demo"])
+router = APIRouter(prefix="/api/v1/demo", tags=["Demo"], dependencies=[Depends(require_admin)])
 
 EMULATOR_URL   = "http://localhost:8000"
 EMULATOR_ADDR  = 10

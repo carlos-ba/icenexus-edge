@@ -16,5 +16,9 @@
     "emulador": false,
     "modbus":   false
   },
+  "usuarios": {
+    "admin":  { "senha": "cetra2025",  "role": "admin"  },
+    "viewer": { "senha": "cliente123", "role": "viewer" }
+  },
   "grupos": []
 }
