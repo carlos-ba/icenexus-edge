@@ -10,5 +10,11 @@
     "user": "usuario_api_sitrad",
     "pass": "senha_api_sitrad"
   },
+  "fontes": {
+    "_comentario": "Habilite apenas as fontes presentes neste ambiente",
+    "sitrad":   true,
+    "emulador": false,
+    "modbus":   false
+  },
   "grupos": []
 }

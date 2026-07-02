@@ -7,8 +7,10 @@ Responsabilidades:
 """
 
 import asyncio
+import json
 import logging
 from datetime import datetime, UTC
+from pathlib import Path
 
 from sqlalchemy import select
 
@@ -19,6 +21,21 @@ from src import emulator_client as emu
 from src import modbus_client as modbus
 
 logger = logging.getLogger("coletor")
+
+_CONFIG_PATH = Path(__file__).parent.parent / "config" / "client_config.json"
+
+
+def _load_fontes() -> dict:
+    """Lê flags de fontes do client_config.json. Padrão: só Sitrad habilitado."""
+    defaults = {"sitrad": True, "emulador": False, "modbus": False}
+    try:
+        if _CONFIG_PATH.exists():
+            cfg = json.loads(_CONFIG_PATH.read_text(encoding="utf-8"))
+            fontes = cfg.get("fontes", {})
+            return {**defaults, **fontes}
+    except Exception as exc:
+        logger.warning("Erro ao ler fontes do config: %s — usando padrão", exc)
+    return defaults
 
 # Mapeamento: campo do snapshot → (código alarme, descrição, severidade)
 ALARM_MAP = {
@@ -196,68 +213,79 @@ def run_collect() -> None:
 
 
 async def _collect_all() -> None:
-    # ── 1. Sitrad PRO ─────────────────────────────────────────────────────────
-    try:
-        sitrad_instruments = await asyncio.to_thread(sitrad.list_instruments)
-    except Exception as exc:
-        logger.error("Erro ao listar instrumentos Sitrad: %s", exc)
-        sitrad_instruments = []
+    fontes = _load_fontes()
+    logger.debug("Fontes ativas: %s", fontes)
 
-    for instr_info in sitrad_instruments:
-        sitrad_id = instr_info["id"]
-        # Adiciona source ao dict
-        instr_info.setdefault("source", "sitrad")
+    # ── 1. Sitrad PRO ─────────────────────────────────────────────────────────
+    if fontes.get("sitrad"):
         try:
-            db_id = await _upsert_instrument(instr_info)
-            snap  = await asyncio.to_thread(sitrad.get_snapshot, sitrad_id)
-            await _save_reading(db_id, snap)
-            logger.debug(
-                "Sitrad — coletado %s: T1=%.1f T3=%.1f status=%s",
-                instr_info["name"],
-                snap.get("t1") or 0,
-                snap.get("t3") or 0,
-                snap.get("process_text", "?"),
-            )
+            sitrad_instruments = await asyncio.to_thread(sitrad.list_instruments)
         except Exception as exc:
-            logger.exception("Erro ao coletar Sitrad id=%d: %s", sitrad_id, exc)
+            logger.error("Erro ao listar instrumentos Sitrad: %s", exc)
+            sitrad_instruments = []
+
+        for instr_info in sitrad_instruments:
+            sitrad_id = instr_info["id"]
+            instr_info.setdefault("source", "sitrad")
+            try:
+                db_id = await _upsert_instrument(instr_info)
+                snap  = await asyncio.to_thread(sitrad.get_snapshot, sitrad_id)
+                await _save_reading(db_id, snap)
+                logger.debug(
+                    "Sitrad — coletado %s: T1=%.1f T3=%.1f status=%s",
+                    instr_info["name"],
+                    snap.get("t1") or 0,
+                    snap.get("t3") or 0,
+                    snap.get("process_text", "?"),
+                )
+            except Exception as exc:
+                logger.exception("Erro ao coletar Sitrad id=%d: %s", sitrad_id, exc)
+    else:
+        logger.debug("Fonte Sitrad desabilitada")
 
     # ── 2. Emulador PCT-122E Plus ─────────────────────────────────────────────
-    for addr in emu.EMULATOR_ADDRESSES:
-        try:
-            ctrl_info = await asyncio.to_thread(emu.get_controller, addr)
-        except Exception:
-            ctrl_info = None
+    if fontes.get("emulador"):
+        for addr in emu.EMULATOR_ADDRESSES:
+            try:
+                ctrl_info = await asyncio.to_thread(emu.get_controller, addr)
+            except Exception:
+                ctrl_info = None
 
+            try:
+                instr_info = emu.build_instrument_info(addr, ctrl_info)
+                db_id  = await _upsert_instrument(instr_info)
+                snap   = await asyncio.to_thread(emu.get_snapshot, addr)
+                await _save_reading(db_id, snap)
+                logger.debug(
+                    "Emulador addr=%d — T1=%.1f T3=%.1f P1=%.1f P2=%.1f SH=%s status=%s",
+                    addr,
+                    snap.get("t1") or 0,
+                    snap.get("t3") or 0,
+                    snap.get("p1") or 0,
+                    snap.get("p2") or 0,
+                    snap.get("superheat"),
+                    snap.get("process_text", "?"),
+                )
+            except Exception as exc:
+                logger.exception("Erro ao coletar emulador addr=%d: %s", addr, exc)
+    else:
+        logger.debug("Fonte Emulador desabilitada")
+
+    # ── 3. TC-900E Log via Modbus RTU (Waveshare COM3) ────────────────────────
+    if fontes.get("modbus"):
         try:
-            instr_info = emu.build_instrument_info(addr, ctrl_info)
-            db_id  = await _upsert_instrument(instr_info)
-            snap   = await asyncio.to_thread(emu.get_snapshot, addr)
+            instr_info = modbus.get_instrument_info()
+            db_id      = await _upsert_instrument(instr_info)
+            snap       = await asyncio.to_thread(modbus.get_snapshot)
             await _save_reading(db_id, snap)
             logger.debug(
-                "Emulador addr=%d — T1=%.1f T3=%.1f P1=%.1f P2=%.1f SH=%s status=%s",
-                addr,
+                "Modbus TC-900E — T1=%.1f T2=%.1f SP=%s status=%s",
                 snap.get("t1") or 0,
-                snap.get("t3") or 0,
-                snap.get("p1") or 0,
-                snap.get("p2") or 0,
-                snap.get("superheat"),
+                snap.get("t2") or 0,
+                snap.get("setpoint"),
                 snap.get("process_text", "?"),
             )
         except Exception as exc:
-            logger.exception("Erro ao coletar emulador addr=%d: %s", addr, exc)
-
-    # ── 3. TC-900E Log via Modbus RTU (Waveshare COM3) ────────────────────────
-    try:
-        instr_info = modbus.get_instrument_info()
-        db_id      = await _upsert_instrument(instr_info)
-        snap       = await asyncio.to_thread(modbus.get_snapshot)
-        await _save_reading(db_id, snap)
-        logger.debug(
-            "Modbus TC-900E — T1=%.1f T2=%.1f SP=%s status=%s",
-            snap.get("t1") or 0,
-            snap.get("t2") or 0,
-            snap.get("setpoint"),
-            snap.get("process_text", "?"),
-        )
-    except Exception as exc:
-        logger.warning("TC-900E Modbus indisponivel: %s", exc)
+            logger.warning("TC-900E Modbus indisponivel: %s", exc)
+    else:
+        logger.debug("Fonte Modbus desabilitada")
