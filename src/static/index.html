@@ -532,18 +532,26 @@ async function openModal(inst, grupo) {
   document.getElementById('modalTitle').textContent =
     (inst.nome_exibicao || live.name || '—') + ' — ' + grupo.nome;
 
+  const hasPressure = sensors.p1 != null || sensors.p2 != null;
   const rows = [
-    { l: 'T1 — Sonda 1',   v: fmt(sensors.t1,       '°C') },
-    { l: 'T2 — Sonda 2',   v: fmt(sensors.t2,       '°C') },
-    { l: 'T3 — Sonda 3',   v: fmt(sensors.t3,       '°C') },
-    { l: 'Setpoint',        v: fmt(sensors.setpoint, '°C') },
-    { l: 'Compressor',      v: out(outputs.refrigeration) },
-    { l: 'Ventilador',      v: out(outputs.fan) },
-    { l: 'Degelo',          v: out(outputs.defrost) },
-    { l: 'Modelo',          v: live.model_name || '—' },
-    { l: 'Endereço RS-485', v: live.address ?? '—' },
-    { l: 'Status',          v: live.online ? '🟢 Online' : '🔴 Offline' },
-  ];
+    { l: 'T1 — Sonda 1',      v: fmt(sensors.t1,        '°C') },
+    { l: 'T2 — Sonda 2',      v: fmt(sensors.t2,        '°C') },
+    { l: 'T3 — Câmara',       v: fmt(sensors.t3,        '°C') },
+    { l: 'T4 — Evaporador',   v: fmt(sensors.t4,        '°C'), hide: sensors.t4 == null },
+    { l: 'Setpoint',           v: fmt(sensors.setpoint,  '°C') },
+    { l: 'P1 — Sucção',       v: fmt(sensors.p1,        ' PSI'), hide: !hasPressure },
+    { l: 'P2 — Descarga',     v: fmt(sensors.p2,        ' PSI'), hide: !hasPressure },
+    { l: 'T. Sat. P1',        v: fmt(sensors.t_sat_p1,  '°C'),  hide: !hasPressure },
+    { l: 'T. Sat. P2',        v: fmt(sensors.t_sat_p2,  '°C'),  hide: !hasPressure },
+    { l: 'Superaquecimento',   v: fmt(sensors.superheat,  '°C'), hide: !hasPressure },
+    { l: 'Subresfriamento',    v: fmt(sensors.subcooling, '°C'), hide: !hasPressure },
+    { l: 'Compressor',         v: out(outputs.refrigeration) },
+    { l: 'Ventilador',         v: out(outputs.fan) },
+    { l: 'Degelo',             v: out(outputs.defrost) },
+    { l: 'Modelo',             v: live.model_name || '—' },
+    { l: 'Endereço RS-485',   v: live.address ?? '—' },
+    { l: 'Status',             v: live.online ? '🟢 Online' : '🔴 Offline' },
+  ].filter(r => !r.hide);
   document.getElementById('detailGrid').innerHTML = rows.map(r =>
     `<div class="detail-row"><span class="dl">${r.l}</span><span class="dv">${r.v}</span></div>`
   ).join('');
