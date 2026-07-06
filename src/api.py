@@ -13,6 +13,7 @@ from sqlalchemy import select, desc, and_, delete
 from src.db import AsyncSessionFactory
 from src.models import AlarmEvent, Instrument, Reading
 from src.auth import require_auth, require_admin
+from src.diagnostico import diagnostico_para
 
 router = APIRouter(prefix="/api/v1", dependencies=[Depends(require_auth)])
 
@@ -155,7 +156,12 @@ async def get_overview() -> list[dict]:
                 "alarm_count":        len(active_alarms),
                 "alarm_duration_min": alarm_duration_min,
                 "active_alarms":      [
-                    {"code": a.code, "description": a.description, "severity": a.severity}
+                    {
+                        "code": a.code,
+                        "description": a.description,
+                        "severity": a.severity,
+                        **(diagnostico_para(a.code) or {}),
+                    }
                     for a in active_alarms
                 ],
                 "avg_fix_min":        avg_fix_min,
@@ -552,6 +558,50 @@ async def admin_collect_now() -> dict:
     from src.collector import _collect_all
     asyncio.create_task(_collect_all())
     return {"status": "triggered", "timestamp": datetime.now(UTC).isoformat()}
+
+
+@router.post("/admin/fault/clear", dependencies=[Depends(require_admin)])
+async def admin_fault_clear() -> dict:
+    """Remove todas as falhas simuladas — emulador volta à operação normal."""
+    import asyncio
+    from src import emulator_client as emu
+    for addr in emu.EMULATOR_ADDRESSES:
+        await asyncio.to_thread(emu.clear_all_faults, addr)
+    return {"status": "normalizado"}
+
+
+@router.post("/admin/fault/{cenario}", dependencies=[Depends(require_admin)])
+async def admin_fault_scenario(cenario: str) -> dict:
+    """
+    Aplica um cenário de falha simulada no controlador EMULADO.
+    Atua exclusivamente na API do emulador (porta 8000) — instrumentos
+    reais do Sitrad são somente leitura e não podem ser afetados.
+    """
+    import asyncio
+    from src import emulator_client as emu
+    from src.fault_scenarios import FAULT_SCENARIOS
+
+    sc = FAULT_SCENARIOS.get(cenario)
+    if sc is None:
+        raise HTTPException(status_code=404, detail=f"Cenário '{cenario}' não existe")
+
+    for addr in emu.EMULATOR_ADDRESSES:
+        # Limpa falhas anteriores para os cenários não se sobreporem
+        await asyncio.to_thread(emu.clear_all_faults, addr)
+        for campo, valor in sc["campos"].items():
+            await asyncio.to_thread(emu.inject_fault, addr, campo, valor)
+
+    return {"status": "aplicado", "cenario": sc["nome"], "descricao": sc["descricao"]}
+
+
+@router.get("/admin/fault-scenarios", dependencies=[Depends(require_admin)])
+async def admin_list_scenarios() -> list[dict]:
+    """Lista os cenários de falha disponíveis para o painel admin."""
+    from src.fault_scenarios import FAULT_SCENARIOS
+    return [
+        {"id": k, "nome": v["nome"], "descricao": v["descricao"]}
+        for k, v in FAULT_SCENARIOS.items()
+    ]
 
 
 @router.post("/admin/clear-history", dependencies=[Depends(require_admin)])

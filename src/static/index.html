@@ -171,12 +171,19 @@
     font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px;
   }
   .alarm-panel-header .badge { background: var(--red); color: #fff; font-size: 10px; padding: 1px 7px; border-radius: 20px; font-weight: 700; }
-  .alarm-list { max-height: 200px; overflow-y: auto; }
+  .alarm-list { max-height: 320px; overflow-y: auto; }
   .alarm-row {
     padding: 10px 18px; border-bottom: 1px solid var(--border);
     display: grid; grid-template-columns: 160px 1fr auto;
-    gap: 12px; align-items: center; font-size: 12px;
+    gap: 12px; align-items: start; font-size: 12px;
   }
+  .alarm-row .diag {
+    font-size: 11px; color: var(--muted);
+    margin-top: 4px; line-height: 1.5;
+  }
+  .alarm-row .diag b { color: var(--text); font-weight: 600; }
+  .alarm-row .diag.acao { color: var(--accent); }
+  .alarm-row .diag.acao b { color: var(--accent); }
   .alarm-row:last-child { border-bottom: none; }
   .alarm-row .instr { color: var(--accent); font-weight: 600; }
   .alarm-row .desc  { color: var(--text); }
@@ -279,6 +286,16 @@
       <button class="admin-btn" id="btn-collect" onclick="adminCollect()">⚡ Coletar Agora</button>
       <button class="admin-btn danger" id="btn-clear" onclick="adminClear()">🗑 Limpar Histórico</button>
     </div>
+    <div class="admin-panel-title" style="margin-top:20px">🔥 Simulador de Falhas <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)">— atua somente no controlador emulado</span></div>
+    <div class="admin-btns">
+      <button class="admin-btn" onclick="adminFault('vazamento_gas')">💨 Vazamento de gás</button>
+      <button class="admin-btn" onclick="adminFault('retorno_liquido')">💧 Retorno de líquido</button>
+      <button class="admin-btn" onclick="adminFault('condensador_sujo')">🌡 Condensador sujo</button>
+      <button class="admin-btn" onclick="adminFault('compressor_ineficiente')">⚙ Compressor sem rendimento</button>
+      <button class="admin-btn" onclick="adminFault('sensor_defeituoso')">📡 Sensor defeituoso</button>
+      <button class="admin-btn" onclick="adminFault('porta_aberta')">🚪 Porta aberta</button>
+      <button class="admin-btn" id="btn-normalizar" onclick="adminFaultClear()" style="border-color:rgba(6,214,160,.5);color:var(--green)">✅ Normalizar sistema</button>
+    </div>
     <div class="admin-msg" id="admin-msg"></div>
   </div>
 
@@ -354,6 +371,39 @@ async function adminCollect() {
     msg.textContent = 'Falha na requisição.';
   }
   btn.disabled = false;
+}
+
+async function adminFault(cenario) {
+  const msg = document.getElementById('admin-msg');
+  msg.textContent = 'Aplicando cenário de falha...';
+  try {
+    const res = await fetch(`${API}/admin/fault/${cenario}`, { method: 'POST' });
+    const data = await res.json();
+    if (res.ok) {
+      msg.textContent = `⚠ Falha simulada: ${data.cenario} — ${data.descricao}. O alarme abre em ~10s.`;
+      setTimeout(refresh, 10000);
+    } else {
+      msg.textContent = `Erro ${res.status}: ${data.detail || ''}`;
+    }
+  } catch(e) {
+    msg.textContent = 'Falha na requisição — o emulador está rodando?';
+  }
+}
+
+async function adminFaultClear() {
+  const msg = document.getElementById('admin-msg');
+  msg.textContent = 'Normalizando sistema...';
+  try {
+    const res = await fetch(`${API}/admin/fault/clear`, { method: 'POST' });
+    if (res.ok) {
+      msg.textContent = '✅ Sistema normalizado — sensores voltam à física normal e os alarmes fecham em ~15s.';
+      setTimeout(refresh, 10000);
+    } else {
+      msg.textContent = `Erro ${res.status}`;
+    }
+  } catch(e) {
+    msg.textContent = 'Falha na requisição — o emulador está rodando?';
+  }
 }
 
 async function adminClear() {
@@ -520,7 +570,11 @@ function renderAlarmPanel(grupos) {
     ? all.map(a => `
         <div class="alarm-row active">
           <span class="instr">${a.inst}</span>
-          <span class="desc">${a.description}</span>
+          <div class="desc">
+            ${a.problema || a.description}
+            ${a.causas ? `<div class="diag"><b>Causas prováveis:</b> ${a.causas.join(' · ')}</div>` : ''}
+            ${a.acoes  ? `<div class="diag acao"><b>Ações recomendadas:</b> ${a.acoes.join(' · ')}</div>` : ''}
+          </div>
           <span class="time">${a.code}</span>
         </div>`).join('')
     : '<div class="no-alarms">✅ Nenhum alarme ativo</div>';

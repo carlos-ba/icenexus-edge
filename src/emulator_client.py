@@ -27,6 +27,41 @@ def get(path: str) -> dict | list:
         return json.loads(resp.read())
 
 
+def _request(method: str, path: str) -> dict:
+    url = EMULATOR_URL + path
+    req = urllib.request.Request(url, method=method, headers={"Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=5) as resp:
+        return json.loads(resp.read())
+
+
+# ---------------------------------------------------------------------------
+# Injeção de falhas — atua SOMENTE no emulador (porta 8000).
+# Instrumentos reais entram via API do Sitrad, que é somente leitura;
+# é impossível este módulo interferir em controladores físicos.
+# ---------------------------------------------------------------------------
+
+FAULT_FIELDS = ("p1", "p2", "t1", "t2", "t3", "t4")
+
+
+def inject_fault(address: int, field: str, value: float) -> dict:
+    """Força um sensor do emulador a um valor fixo (override persistente)."""
+    return _request("POST", f"/api/v1/controllers/{address}/fault?field={field}&value={value}")
+
+
+def clear_fault(address: int, field: str) -> dict:
+    """Remove o override de um sensor — volta à física normal."""
+    return _request("DELETE", f"/api/v1/controllers/{address}/fault/{field}")
+
+
+def clear_all_faults(address: int) -> None:
+    """Remove todos os overrides de sensores do controlador."""
+    for f in FAULT_FIELDS:
+        try:
+            clear_fault(address, f)
+        except Exception:
+            pass
+
+
 def list_controllers() -> list[dict]:
     """Retorna lista de controladores do emulador."""
     return get("/api/v1/controllers/")
