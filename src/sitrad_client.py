@@ -137,7 +137,10 @@ MODEL_CODE_MAPS: dict[int, dict[str, str]] = {
     #   OBS: SUB RESFRIADOR controla sucção por temp. fluido secundário
     #        (T.entrada/T.saída solução) — mapear t3/t4 nesses campos
     #
-    # MT-543E plus (medidor): t1..t3 ← sensores de temperatura
+    # MT-543E plus (controlador 4 estágios, 1 sensor NTC/PT-100):
+    #   t1       ← sensor de temperatura (único)
+    #   setpoint ← SP1 (1º estágio)
+    #   out_refrigeration ← OUT1 (se código de saída existir)
     # PhaseLOG E plus (tensão) e AutoPID plus (torre): avaliar códigos no log
 }
 
