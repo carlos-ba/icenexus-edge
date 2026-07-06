@@ -145,7 +145,10 @@ MODEL_CODE_MAPS: dict[int, dict[str, str]] = {
     #   NÃO mapear tensões em t1..t3 (unidade errada — mostraria V como °C).
     #   Card fica com nome/status/alarmes. Futuro: campo genérico de medições
     #   no Reading para grandezas elétricas.
-    # AutoPID plus (torre de resfriamento): avaliar códigos no log
+    # AutoPID plus (controlador PID de temperatura — torre de resfriamento):
+    #   t1       ← temperatura de controle
+    #   setpoint ← setpoint PID
+    #   (saída proporcional % → an1_pct, se código existir)
 }
 
 
