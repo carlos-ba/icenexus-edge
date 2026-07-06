@@ -54,9 +54,30 @@
 
   /* ── Summary bar ── */
   .summary-bar {
-    display: grid; grid-template-columns: repeat(4, 1fr);
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
     gap: 12px; margin-bottom: 24px;
   }
+
+  /* ── Fluxo de atendimento nos alarmes ── */
+  .wf { margin-top: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .wf-badge {
+    font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 600;
+  }
+  .wf-badge.pendente  { background: rgba(255,209,102,.15); color: var(--yellow); animation: pulse 1.4s ease-in-out infinite; }
+  .wf-badge.atribuido { background: rgba(0,180,216,.15);  color: var(--accent); }
+  .wf-badge.ok        { background: rgba(6,214,160,.15);  color: var(--green); }
+  .wf-badge.erro      { background: rgba(239,71,111,.15); color: var(--red); }
+  .wf select {
+    background: var(--card); border: 1px solid var(--border); color: var(--text);
+    font-size: 11px; padding: 3px 6px; border-radius: 6px; outline: none;
+  }
+  .btn-mini {
+    font-size: 11px; padding: 3px 10px; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--card); color: var(--text);
+  }
+  .btn-mini:hover { border-color: var(--accent); }
+  .btn-mini.ok:hover  { border-color: var(--green);  color: var(--green); }
+  .btn-mini.nok:hover { border-color: var(--red);    color: var(--red); }
   .summary-card {
     background: var(--surface); border: 1px solid var(--border);
     border-radius: var(--radius); padding: 16px 20px;
@@ -278,6 +299,10 @@
       <span class="label">Alarmes Ativos</span>
       <span class="value crit" id="sumAlarms">—</span>
     </div>
+    <div class="summary-card">
+      <span class="label">Acerto Diagnóstico IA</span>
+      <span class="value info" id="sumIA">—</span>
+    </div>
   </div>
 
   <div id="admin-panel">
@@ -328,6 +353,8 @@
 <script>
 const API = '/api/v1';
 let histChart = null;
+let currentUser = null;
+let tecnicos = [];
 
 async function doLogout() {
   await fetch('/logout', { method: 'POST' });
@@ -348,9 +375,13 @@ async function initAuth() {
       badge.style.border     = '1px solid rgba(139,148,158,.2)';
     }
   }
+  currentUser = user;
   if (user.role === 'admin') {
     document.getElementById('admin-panel').classList.add('visible');
   }
+  try {
+    tecnicos = await (await fetch(`${API}/tecnicos`)).json();
+  } catch(e) { tecnicos = []; }
   return true;
 }
 
@@ -477,7 +508,15 @@ function render(data) {
   gruposEl.innerHTML = '';
   for (const grupo of data.grupos || []) gruposEl.appendChild(renderGrupo(grupo));
 
-  renderAlarmPanel(data.grupos || []);
+  loadAlarms();
+}
+
+async function loadAlarms() {
+  try {
+    const res = await fetch(`${API}/alarms/recent`);
+    if (!res.ok) return;
+    renderAlarmPanel(await res.json());
+  } catch(e) {}
 }
 
 function renderGrupo(grupo) {
@@ -558,25 +597,90 @@ function renderCard(inst, grupo) {
   return el;
 }
 
-function renderAlarmPanel(grupos) {
-  const list = document.getElementById('alarmList');
-  const all  = [];
-  for (const g of grupos)
-    for (const inst of g.instrumentos || [])
-      for (const a of (inst._live || {}).active_alarms || [])
-        all.push({ inst: inst.nome_exibicao || (inst._live || {}).name, ...a });
+function renderWorkflow(a) {
+  const isAdmin = currentUser && currentUser.role === 'admin';
 
+  // 1) Sem responsável → pendência gritante + atribuição (admin)
+  if (!a.assumed_by) {
+    const select = isAdmin && tecnicos.length
+      ? `<select id="sel-tec-${a.id}">${tecnicos.map(t => `<option>${t}</option>`).join('')}</select>
+         <button class="btn-mini" onclick="assignAlarm(${a.id})">Atribuir</button>`
+      : '';
+    return `<div class="wf"><span class="wf-badge pendente">⏳ Aguardando responsável</span>${select}</div>`;
+  }
+
+  // 2) Com responsável, diagnóstico ainda não validado
+  if (a.diagnostico_correto == null) {
+    const botoes = isAdmin
+      ? `<button class="btn-mini ok"  onclick="validateAlarm(${a.id}, true)">✔ Diagnóstico correto</button>
+         <button class="btn-mini nok" onclick="validateAlarm(${a.id}, false)">✘ Incorreto</button>`
+      : '';
+    return `<div class="wf"><span class="wf-badge atribuido">👤 ${a.assumed_by}</span>${botoes}</div>`;
+  }
+
+  // 3) Validado
+  const resultado = a.diagnostico_correto
+    ? `<span class="wf-badge ok">✅ Diagnóstico confirmado por ${a.assumed_by}</span>`
+    : `<span class="wf-badge erro">⚠ Causa real: ${a.causa_real}</span><span class="wf-badge atribuido">👤 ${a.assumed_by}</span>`;
+  return `<div class="wf">${resultado}</div>`;
+}
+
+async function assignAlarm(id) {
+  const sel = document.getElementById('sel-tec-' + id);
+  if (!sel || !sel.value) return;
+  await fetch(`${API}/alarms/${id}/assume`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ technician: sel.value }),
+  });
+  loadAlarms();
+}
+
+async function validateAlarm(id, correto) {
+  let causa = null;
+  if (!correto) {
+    causa = prompt('Qual foi a causa real do problema?');
+    if (!causa) return;
+  }
+  const res = await fetch(`${API}/alarms/${id}/validate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ correto, causa_real: causa }),
+  });
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    alert(d.detail || 'Erro ao validar');
+  }
+  loadAlarms();
+}
+
+function renderAlarmPanel(data) {
+  const list  = document.getElementById('alarmList');
+  // Não re-renderiza enquanto o usuário interage com um select/botão do painel
+  if (document.activeElement && list.contains(document.activeElement)) return;
+  const stats = data.ia_stats || {};
+  document.getElementById('sumIA').textContent =
+    stats.pct != null ? stats.pct + '%' : '—';
+
+  const all = data.alarms || [];
   list.innerHTML = all.length
-    ? all.map(a => `
-        <div class="alarm-row active">
-          <span class="instr">${a.inst}</span>
+    ? all.map(a => {
+        const hora = a.started_at
+          ? new Date(a.started_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+          : '';
+        const estado = a.is_active ? '' : ' <span style="color:var(--green)">(resolvido)</span>';
+        return `
+        <div class="alarm-row ${a.is_active ? 'active' : ''}">
+          <span class="instr">${a.instrument}</span>
           <div class="desc">
-            ${a.problema || a.description}
+            ${a.problema || a.description}${estado}
             ${a.causas ? `<div class="diag"><b>Causas prováveis:</b> ${a.causas.join(' · ')}</div>` : ''}
             ${a.acoes  ? `<div class="diag acao"><b>Ações recomendadas:</b> ${a.acoes.join(' · ')}</div>` : ''}
+            ${renderWorkflow(a)}
           </div>
-          <span class="time">${a.code}</span>
-        </div>`).join('')
+          <span class="time">${hora}<br>${a.code}</span>
+        </div>`;
+      }).join('')
     : '<div class="no-alarms">✅ Nenhum alarme ativo</div>';
 }
 

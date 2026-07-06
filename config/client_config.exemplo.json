@@ -20,5 +20,6 @@
     "admin":  { "senha": "cetra2025",  "role": "admin"  },
     "viewer": { "senha": "cliente123", "role": "viewer" }
   },
+  "tecnicos": ["Carlos Roberto", "Técnico de Plantão"],
   "grupos": []
 }

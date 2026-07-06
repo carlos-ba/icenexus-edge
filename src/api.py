@@ -409,6 +409,120 @@ async def assume_alarm(alarm_id: int, body: dict) -> dict:
         }
 
 
+@router.get("/tecnicos")
+async def list_tecnicos() -> list[str]:
+    """Lista de técnicos disponíveis para atribuição (client_config.json)."""
+    from src.auth import _load_config
+    cfg = _load_config()
+    tecnicos = cfg.get("tecnicos") or []
+    if not tecnicos:
+        tecnicos = ["Técnico de Plantão"]
+    return tecnicos
+
+
+@router.post("/alarms/{alarm_id}/validate", dependencies=[Depends(require_admin)])
+async def validate_alarm_diagnosis(alarm_id: int, body: dict) -> dict:
+    """
+    Registra a validação do diagnóstico da IA pelo técnico responsável.
+    body: {"correto": bool, "causa_real": str (obrigatória se correto=False)}
+    Alimenta também a memória de aprendizado (diagnosis_cases).
+    """
+    correto = body.get("correto")
+    causa_real = (body.get("causa_real") or "").strip() or None
+    if correto is None:
+        raise HTTPException(status_code=422, detail="Campo 'correto' obrigatório")
+    if correto is False and not causa_real:
+        raise HTTPException(status_code=422, detail="Informe a causa real quando o diagnóstico está incorreto")
+
+    async with AsyncSessionFactory() as session:
+        alarm = await session.get(AlarmEvent, alarm_id)
+        if not alarm:
+            raise HTTPException(status_code=404, detail="Alarme não encontrado")
+        if not alarm.assumed_by:
+            raise HTTPException(status_code=422, detail="Atribua um responsável antes de validar o diagnóstico")
+
+        alarm.diagnostico_correto = bool(correto)
+        alarm.causa_real = causa_real
+        alarm.avaliado_em = datetime.now(UTC)
+
+        # Memória de aprendizado — caso confirmado vira dataset
+        from src.models import DiagnosisCase
+        diag = diagnostico_para(alarm.code) or {}
+        instr = await session.get(Instrument, alarm.instrument_id)
+        session.add(DiagnosisCase(
+            instrument_id=alarm.instrument_id,
+            instrument_name=instr.name if instr else "?",
+            ai_diagnosis=diag.get("problema") or alarm.description,
+            ai_cause="; ".join(diag.get("causas", [])[:2]) or None,
+            confirmed=True,
+            ai_was_correct=bool(correto),
+            confirmed_cause=causa_real,
+            confirmed_by=alarm.assumed_by,
+            confirmed_at=datetime.now(UTC),
+        ))
+        await session.commit()
+
+        return {
+            "id": alarm.id,
+            "diagnostico_correto": alarm.diagnostico_correto,
+            "causa_real": alarm.causa_real,
+        }
+
+
+@router.get("/alarms/recent")
+async def recent_alarms(limit: int = Query(default=15, ge=1, le=100)) -> dict:
+    """
+    Ocorrências recentes (ativas primeiro) com estado do fluxo de atendimento
+    e diagnóstico da IA, + estatística de acerto dos diagnósticos validados.
+    """
+    async with AsyncSessionFactory() as session:
+        result = await session.execute(
+            select(AlarmEvent, Instrument.name)
+            .join(Instrument, Instrument.id == AlarmEvent.instrument_id)
+            .order_by(desc(AlarmEvent.is_active), desc(AlarmEvent.started_at))
+            .limit(limit)
+        )
+        rows = result.all()
+
+        # Estatística de acerto da IA (todos os alarmes já validados)
+        stats_result = await session.execute(
+            select(AlarmEvent.diagnostico_correto)
+            .where(AlarmEvent.diagnostico_correto.is_not(None))
+        )
+        validados = [r[0] for r in stats_result.all()]
+        total_validados = len(validados)
+        acertos = sum(1 for v in validados if v)
+
+        alarms = []
+        for alarm, instr_name in rows:
+            diag = diagnostico_para(alarm.code) or {}
+            alarms.append({
+                "id":          alarm.id,
+                "instrument":  instr_name,
+                "code":        alarm.code,
+                "description": alarm.description,
+                "severity":    alarm.severity,
+                "is_active":   alarm.is_active,
+                "started_at":  alarm.started_at.isoformat() if alarm.started_at else None,
+                "cleared_at":  alarm.cleared_at.isoformat() if alarm.cleared_at else None,
+                "assumed_by":  alarm.assumed_by,
+                "diagnostico_correto": alarm.diagnostico_correto,
+                "causa_real":  alarm.causa_real,
+                "problema":    diag.get("problema"),
+                "causas":      diag.get("causas"),
+                "acoes":       diag.get("acoes"),
+            })
+
+        return {
+            "alarms": alarms,
+            "ia_stats": {
+                "validados": total_validados,
+                "acertos":   acertos,
+                "pct":       round(acertos / total_validados * 100) if total_validados else None,
+            },
+        }
+
+
 # ---------------------------------------------------------------------------
 # Relatório PDF de conformidade
 # ---------------------------------------------------------------------------

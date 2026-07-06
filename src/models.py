@@ -157,4 +157,9 @@ class AlarmEvent(Base):
     assumed_by:  Mapped[str | None]      = mapped_column(String, nullable=True)
     assumed_at:  Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Validação do diagnóstico da IA pelo técnico responsável
+    diagnostico_correto: Mapped[bool | None]     = mapped_column(Boolean, nullable=True)
+    causa_real:          Mapped[str | None]      = mapped_column(String, nullable=True)
+    avaliado_em:         Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     instrument: Mapped["Instrument"] = relationship(back_populates="alarm_events", lazy="noload")
