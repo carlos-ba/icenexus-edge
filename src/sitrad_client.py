@@ -141,7 +141,11 @@ MODEL_CODE_MAPS: dict[int, dict[str, str]] = {
     #   t1       ← sensor de temperatura (único)
     #   setpoint ← SP1 (1º estágio)
     #   out_refrigeration ← OUT1 (se código de saída existir)
-    # PhaseLOG E plus (tensão) e AutoPID plus (torre): avaliar códigos no log
+    # PhaseLOG E plus (tensões trifásicas True RMS + proteções de fase):
+    #   NÃO mapear tensões em t1..t3 (unidade errada — mostraria V como °C).
+    #   Card fica com nome/status/alarmes. Futuro: campo genérico de medições
+    #   no Reading para grandezas elétricas.
+    # AutoPID plus (torre de resfriamento): avaliar códigos no log
 }
 
 
