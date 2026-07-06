@@ -123,12 +123,16 @@ async def get_overview() -> list[dict]:
                 is_pct = (instr.model_id == 117)
                 if is_pct:
                     sensors = {
-                        "p1":        reading.p1,
-                        "p2":        reading.p2,
-                        "t1":        reading.t1,
-                        "t3":        reading.t3,
-                        "superheat": reading.superheat,
-                        "t_sat_p1":  reading.t_sat_p1,
+                        "p1":         reading.p1,
+                        "p2":         reading.p2,
+                        "t1":         reading.t1,
+                        "t2":         reading.t2,
+                        "t3":         reading.t3,
+                        "t4":         reading.t4,
+                        "superheat":  reading.superheat,
+                        "subcooling": reading.subcooling,
+                        "t_sat_p1":   reading.t_sat_p1,
+                        "t_sat_p2":   reading.t_sat_p2,
                     }
                 else:
                     sensors = {
