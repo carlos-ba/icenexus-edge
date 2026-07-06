@@ -118,6 +118,27 @@ def get_values(instrument_id: int) -> dict[str, Any]:
 MODEL_CODE_MAPS: dict[int, dict[str, str]] = {
     # Preenchido em campo com os códigos reais do log. Exemplo:
     # 130: {"p1": "PressureSuction1", "superheat": "Superheat1"},
+    #
+    # Plano de mapeamento (semântica confirmada nos manuais em 06/07/2026):
+    #
+    # VX-1050E plus (válvula de expansão, modo driver no cliente):
+    #   p1        ← pressão de sucção        t_sat_p1  ← saturação (tSat)
+    #   superheat ← superaquecimento          t3        ← S3 temp. linha sucção
+    #   t1        ← S1 ambiente (desconectado no cliente → None)
+    #   t2        ← S2 evaporador (desconectado no cliente → None)
+    #   (abertura da válvula % → an1_pct, se código existir)
+    #
+    # RCK-862 plus (rack; usar grupo/sucção 1 e descarga 1 como principais):
+    #   p1        ← pressão sucção 1          t_sat_p1  ← temp. saturação sucção 1
+    #   superheat ← superaquecimento sucção 1 t1        ← temp. sucção 1
+    #   p2        ← pressão descarga 1        t_sat_p2  ← saturação descarga 1
+    #   subcooling← sub-resfriamento desc. 1  t2        ← temp. linha líquido desc. 1
+    #   setpoint  ← setpoint sucção 1
+    #   OBS: SUB RESFRIADOR controla sucção por temp. fluido secundário
+    #        (T.entrada/T.saída solução) — mapear t3/t4 nesses campos
+    #
+    # MT-543E plus (medidor): t1..t3 ← sensores de temperatura
+    # PhaseLOG E plus (tensão) e AutoPID plus (torre): avaliar códigos no log
 }
 
 
