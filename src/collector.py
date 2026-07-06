@@ -249,7 +249,9 @@ async def _collect_all() -> None:
 
             try:
                 db_id = await _upsert_instrument(instr_info)
-                snap  = await asyncio.to_thread(sitrad.get_snapshot, sitrad_id)
+                snap  = await asyncio.to_thread(
+                    sitrad.get_snapshot, sitrad_id, instr_info.get("modelId")
+                )
                 await _save_reading(db_id, snap)
                 logger.debug(
                     "Sitrad — coletado %s: T1=%.1f T3=%.1f status=%s",

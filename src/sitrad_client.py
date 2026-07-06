@@ -101,7 +101,27 @@ def get_values(instrument_id: int) -> dict[str, Any]:
     return out
 
 
-def get_snapshot(instrument_id: int) -> dict[str, Any]:
+# ---------------------------------------------------------------------------
+# Mapeamento de códigos por modelo
+# ---------------------------------------------------------------------------
+# Modelos cujos códigos diferem do padrão (TC-900E). Preencher com base no
+# log do coletor: "NOVO INSTRUMENTO ... códigos disponíveis: [...]".
+# Formato: {modelId: {campo_snapshot: codigo_api}}
+# Campos aceitos: t1 t2 t3 t4 p1 p2 superheat subcooling t_sat_p1 t_sat_p2 setpoint
+#
+# Instrumentos esperados no cliente (levantados em 06/07/2026 via Sitrad XANDO):
+#   RCK-862 plus   — rack: sucção (pressão+SH) / descarga (pressão+SC) por grupo
+#   VX-1050E plus  — válvula de expansão: abertura %, T sucção, SH, P sucção, saturação
+#   MT-543E plus   — medidor de temperatura
+#   PhaseLOG E plus — monitor de tensão/fases
+#   AutoPID plus   — controlador PID (torre de resfriamento)
+MODEL_CODE_MAPS: dict[int, dict[str, str]] = {
+    # Preenchido em campo com os códigos reais do log. Exemplo:
+    # 130: {"p1": "PressureSuction1", "superheat": "Superheat1"},
+}
+
+
+def get_snapshot(instrument_id: int, model_id: int | None = None) -> dict[str, Any]:
     """
     Extrai os campos mais relevantes para monitoramento de câmara fria.
     Retorna um snapshot limpo e normalizado.
@@ -178,6 +198,13 @@ def get_snapshot(instrument_id: int) -> dict[str, Any]:
             if val is not None:
                 snap["setpoint"] = val
                 break
+
+    # ── Mapeamento específico do modelo (sobrepõe/complementa o padrão) ──
+    if model_id and model_id in MODEL_CODE_MAPS:
+        for campo, code in MODEL_CODE_MAPS[model_id].items():
+            val = _num(code)
+            if val is not None:
+                snap[campo] = val
 
     return snap
 

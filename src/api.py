@@ -117,30 +117,22 @@ async def get_overview() -> list[dict]:
             if fix_times:
                 avg_fix_min = round(sum(fix_times) / len(fix_times))
 
-            # Valores chave por modelo
+            # Valores presentes na leitura — genérico para qualquer modelo:
+            # o card/modal exibem o que existir (pressões só aparecem se o
+            # instrumento tiver transdutores, independente do model_id).
             sensors = {}
             if reading:
-                is_pct = (instr.model_id == 117)
-                if is_pct:
-                    sensors = {
-                        "p1":         reading.p1,
-                        "p2":         reading.p2,
-                        "t1":         reading.t1,
-                        "t2":         reading.t2,
-                        "t3":         reading.t3,
-                        "t4":         reading.t4,
-                        "superheat":  reading.superheat,
-                        "subcooling": reading.subcooling,
-                        "t_sat_p1":   reading.t_sat_p1,
-                        "t_sat_p2":   reading.t_sat_p2,
-                    }
-                else:
-                    sensors = {
-                        "t1":      reading.t1,
-                        "t2":      reading.t2,
-                        "t3":      reading.t3,
-                        "setpoint": reading.setpoint,
-                    }
+                campos = (
+                    "t1", "t2", "t3", "t4",
+                    "p1", "p2",
+                    "superheat", "subcooling",
+                    "t_sat_p1", "t_sat_p2",
+                    "setpoint",
+                )
+                sensors = {
+                    c: valor for c in campos
+                    if (valor := getattr(reading, c)) is not None
+                }
 
             overview.append({
                 "id":           instr.id,
