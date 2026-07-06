@@ -628,15 +628,21 @@ function renderWorkflow(a) {
 async function assignAlarm(id) {
   const sel = document.getElementById('sel-tec-' + id);
   if (!sel || !sel.value) return;
-  await fetch(`${API}/alarms/${id}/assume`, {
+  if (document.activeElement) document.activeElement.blur();
+  const res = await fetch(`${API}/alarms/${id}/assume`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ technician: sel.value }),
   });
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    alert(d.detail || 'Erro ao atribuir responsável');
+  }
   loadAlarms();
 }
 
 async function validateAlarm(id, correto) {
+  if (document.activeElement) document.activeElement.blur();
   let causa = null;
   if (!correto) {
     causa = prompt('Qual foi a causa real do problema?');
@@ -656,8 +662,10 @@ async function validateAlarm(id, correto) {
 
 function renderAlarmPanel(data) {
   const list  = document.getElementById('alarmList');
-  // Não re-renderiza enquanto o usuário interage com um select/botão do painel
-  if (document.activeElement && list.contains(document.activeElement)) return;
+  // Não re-renderiza apenas enquanto o usuário está com um SELECT aberto
+  // (botões devem permitir a atualização — senão o painel congela após o clique)
+  const ae = document.activeElement;
+  if (ae && list.contains(ae) && ae.tagName === 'SELECT') return;
   const stats = data.ia_stats || {};
   document.getElementById('sumIA').textContent =
     stats.pct != null ? stats.pct + '%' : '—';
