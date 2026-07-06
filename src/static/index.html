@@ -310,6 +310,7 @@
     <div class="admin-btns">
       <button class="admin-btn" id="btn-collect" onclick="adminCollect()">⚡ Coletar Agora</button>
       <button class="admin-btn danger" id="btn-clear" onclick="adminClear()">🗑 Limpar Histórico</button>
+      <button class="admin-btn" id="btn-analise" onclick="adminAnalise()" style="border-color:rgba(0,180,216,.5);color:var(--accent)">🧠 Análise Geral do Sistema</button>
     </div>
     <div class="admin-panel-title" style="margin-top:20px">🔥 Simulador de Falhas <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)">— atua somente no controlador emulado</span></div>
     <div class="admin-btns">
@@ -336,6 +337,17 @@
     </div>
   </div>
 </main>
+
+<div class="modal-overlay" id="analiseOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">🧠 Análise Geral do Sistema</span>
+      <button class="modal-close" onclick="closeAnalise()">✕</button>
+    </div>
+    <div id="analiseBody" style="font-size:13px;line-height:1.7"></div>
+    <div id="analiseRodape" style="margin-top:16px;font-size:11px;color:var(--muted)"></div>
+  </div>
+</div>
 
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
@@ -436,6 +448,67 @@ async function adminFaultClear() {
     msg.textContent = 'Falha na requisição — o emulador está rodando?';
   }
 }
+
+function mdParaHtml(md) {
+  // Conversor markdown mínimo (títulos, negrito, itálico, listas)
+  const esc = md.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const linhas = esc.split('\n');
+  let html = '', emLista = false;
+  for (const l of linhas) {
+    let t = l.trim();
+    if (t.startsWith('## ')) {
+      if (emLista) { html += '</ul>'; emLista = false; }
+      html += `<h3 style="margin:16px 0 8px;font-size:15px;color:var(--accent)">${t.slice(3)}</h3>`;
+      continue;
+    }
+    const itemLista = /^(-|\*|\d+\.)\s+/.exec(t);
+    if (itemLista) {
+      if (!emLista) { html += '<ul style="margin:4px 0 4px 18px">'; emLista = true; }
+      html += `<li style="margin:3px 0">${t.slice(itemLista[0].length)}</li>`;
+      continue;
+    }
+    if (emLista) { html += '</ul>'; emLista = false; }
+    if (t) html += `<p style="margin:6px 0">${t}</p>`;
+  }
+  if (emLista) html += '</ul>';
+  return html
+    .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+    .replace(/\*(.+?)\*/g, '<i style="color:var(--muted)">$1</i>');
+}
+
+async function adminAnalise() {
+  const btn  = document.getElementById('btn-analise');
+  const body = document.getElementById('analiseBody');
+  const rodape = document.getElementById('analiseRodape');
+  btn.disabled = true;
+  btn.textContent = '🧠 Analisando...';
+  body.innerHTML = '<p style="color:var(--muted)">Coletando dados de todos os instrumentos e consultando o engenheiro de IA... isso leva alguns segundos.</p>';
+  rodape.textContent = '';
+  document.getElementById('analiseOverlay').classList.add('open');
+  try {
+    const res = await fetch(`${API}/admin/analise-geral`, { method: 'POST' });
+    const data = await res.json();
+    if (res.ok) {
+      body.innerHTML = mdParaHtml(data.analise);
+      const quando = new Date(data.gerado_em).toLocaleString('pt-BR');
+      const fonte = data.fonte === 'ia' ? 'Análise por IA (Claude)' : 'Análise local por regras';
+      rodape.textContent = `${fonte} · ${data.instrumentos_analisados} instrumento(s) · ${quando}`;
+    } else {
+      body.innerHTML = `<p style="color:var(--red)">Erro ${res.status}: ${data.detail || 'falha na análise'}</p>`;
+    }
+  } catch(e) {
+    body.innerHTML = '<p style="color:var(--red)">Falha na requisição — servidor indisponível.</p>';
+  }
+  btn.disabled = false;
+  btn.textContent = '🧠 Análise Geral do Sistema';
+}
+
+function closeAnalise() {
+  document.getElementById('analiseOverlay').classList.remove('open');
+}
+document.getElementById('analiseOverlay').addEventListener('click', e => {
+  if (e.target.id === 'analiseOverlay') closeAnalise();
+});
 
 async function adminClear() {
   if (!confirm('Apagar todo o histórico de leituras e alarmes? Os instrumentos serão mantidos.')) return;

@@ -718,6 +718,18 @@ async def admin_list_scenarios() -> list[dict]:
     ]
 
 
+@router.post("/admin/analise-geral", dependencies=[Depends(require_admin)])
+async def admin_analise_geral() -> dict:
+    """
+    Análise geral do sistema com IA: coleta o estado consolidado de todos
+    os instrumentos (leituras, tendências 60min, alarmes, casos validados)
+    e retorna um parecer técnico. Fallback por regras se a IA estiver
+    indisponível.
+    """
+    from src.analise_geral import executar_analise
+    return await executar_analise()
+
+
 @router.post("/admin/clear-history", dependencies=[Depends(require_admin)])
 async def admin_clear_history() -> dict:
     """Apaga readings e alarm_events; mantém a tabela de instrumentos intacta."""
