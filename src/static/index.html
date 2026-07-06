@@ -32,8 +32,11 @@
     position: sticky; top: 0; z-index: 100;
   }
   .brand { display: flex; align-items: center; gap: 10px; }
-  .brand-icon { font-size: 22px; }
-  .brand-name { font-size: 18px; font-weight: 700; color: var(--accent); letter-spacing: .5px; }
+  .brand-logo {
+    background: #ffffff; border-radius: 8px;
+    padding: 5px 12px; display: flex; align-items: center;
+  }
+  .brand-logo img { height: 26px; display: block; }
   .brand-sep  { color: var(--border); margin: 0 8px; }
   .client-name { font-size: 14px; color: var(--muted); }
   .header-right { display: flex; align-items: center; gap: 16px; }
@@ -229,14 +232,13 @@
 <body>
 
 <div class="loader" id="loader">
-  <div class="loader-icon">❄</div>
-  <div class="loader-text">Carregando IceNexus Edge...</div>
+  <div class="loader-icon" style="background:#fff;border-radius:12px;padding:14px 24px"><img src="/static/img/logo.png" alt="IceNexus IAR" style="height:40px;display:block"></div>
+  <div class="loader-text">Carregando IceNexus IAR...</div>
 </div>
 
 <header>
   <div class="brand">
-    <span class="brand-icon">❄</span>
-    <span class="brand-name">IceNexus Edge</span>
+    <span class="brand-logo"><img src="/static/img/logo.png" alt="IceNexus IAR"></span>
     <span class="brand-sep">|</span>
     <span class="client-name" id="clientName">—</span>
   </div>
