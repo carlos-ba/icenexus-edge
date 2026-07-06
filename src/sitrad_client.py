@@ -112,7 +112,7 @@ def get_snapshot(instrument_id: int) -> dict[str, Any]:
         entry = vals.get(code)
         return entry["value"] if entry and not entry["error"] else None
 
-    return {
+    snap = {
         # Sensores de temperatura
         "t1":            v("Sensor1"),
         "t2":            v("Sensor2"),
@@ -153,6 +153,33 @@ def get_snapshot(instrument_id: int) -> dict[str, Any]:
         # Relógio do instrumento
         "rtc": v("InternalRtc"),
     }
+
+    # ── Fallback para modelos com códigos diferentes ──────────────────────
+    # Alguns modelos Full Gauge não expõem "Sensor1"/"CurrentSetpoint".
+    # Em vez de adivinhar nomes, procura nos códigos QUE O MODELO RETORNOU
+    # os que seguem os padrões da API (prefixo "Sensor", contém "Setpoint").
+    def _num(code: str):
+        entry = vals.get(code)
+        if entry and not entry["error"] and isinstance(entry["value"], (int, float)):
+            return entry["value"]
+        return None
+
+    if snap["t1"] is None:
+        sensor_codes = sorted(c for c in vals if c.lower().startswith("sensor"))
+        for i, code in enumerate(sensor_codes[:3]):
+            key = f"t{i + 1}"
+            if snap[key] is None:
+                snap[key] = _num(code)
+
+    if snap["setpoint"] is None:
+        sp_codes = [c for c in vals if "setpoint" in c.lower()]
+        for code in sp_codes:
+            val = _num(code)
+            if val is not None:
+                snap["setpoint"] = val
+                break
+
+    return snap
 
 
 if __name__ == "__main__":

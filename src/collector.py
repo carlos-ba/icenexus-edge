@@ -24,6 +24,9 @@ logger = logging.getLogger("coletor")
 
 _CONFIG_PATH = Path(__file__).parent.parent / "config" / "client_config.json"
 
+# IDs de instrumentos cujos códigos de valores já foram logados nesta execução
+_codigos_logados: set[int] = set()
+
 
 def _load_fontes() -> dict:
     """Lê flags de fontes do client_config.json. Padrão: só Sitrad habilitado."""
@@ -227,6 +230,23 @@ async def _collect_all() -> None:
         for instr_info in sitrad_instruments:
             sitrad_id = instr_info["id"]
             instr_info.setdefault("source", "sitrad")
+
+            # Diagnóstico: na primeira vez que um instrumento é visto nesta
+            # execução, registra todos os códigos de valores que o modelo
+            # expõe na API — essencial para mapear modelos desconhecidos.
+            if sitrad_id not in _codigos_logados:
+                try:
+                    vals = await asyncio.to_thread(sitrad.get_values, sitrad_id)
+                    logger.info(
+                        "NOVO INSTRUMENTO %s (id=%d, modelo=%s) — códigos disponíveis: %s",
+                        instr_info.get("name"), sitrad_id,
+                        instr_info.get("model_name") or instr_info.get("modelId"),
+                        sorted(vals.keys()),
+                    )
+                except Exception as exc:
+                    logger.warning("Não foi possível listar códigos do id=%d: %s", sitrad_id, exc)
+                _codigos_logados.add(sitrad_id)
+
             try:
                 db_id = await _upsert_instrument(instr_info)
                 snap  = await asyncio.to_thread(sitrad.get_snapshot, sitrad_id)
