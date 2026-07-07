@@ -660,36 +660,79 @@ function renderCard(inst, grupo) {
   const el = document.createElement('div');
   el.className = cardClass;
 
-  // PhaseLOG (modelId 65): monitor de tensão trifásica — fases em t1/t2/t3 (Vac)
-  const isPhaseLog = live.model_id === 65;
-  if (isPhaseLog) {
-    const fr = sensors.t1, fs = sensors.t2, ft = sensors.t3;
-    el.innerHTML = `
-      <div class="card-header">
-        <span class="card-name">${inst.nome_exibicao || live.name || '—'}</span>
-        <span class="card-status ${statusClass}">${statusLabel}</span>
-      </div>
-      <div class="card-temp ${isOnline ? 'ok' : 'off'}">
-        ${fr != null ? fr.toFixed(0) : '—'}<span class="unit">${fr != null ? ' Vac' : ''}</span>
-      </div>
-      <div class="card-setpoint">Fases — R: <span>${fr != null ? fr.toFixed(0) + 'V' : '—'}</span> · S: <span>${fs != null ? fs.toFixed(0) + 'V' : '—'}</span> · T: <span>${ft != null ? ft.toFixed(0) + 'V' : '—'}</span></div>
-      ${alarmsHtml ? `<div class="card-alarms">${alarmsHtml}</div>` : ''}
-    `;
+  const cabecalho = `
+    <div class="card-header">
+      <span class="card-name">${inst.nome_exibicao || live.name || '—'}</span>
+      <span class="card-status ${statusClass}">${statusLabel}</span>
+    </div>`;
+  const rodapeAlarmes = alarmsHtml ? `<div class="card-alarms">${alarmsHtml}</div>` : '';
+  const n = (v, dec = 1) => v != null ? v.toFixed(dec) : '—';
+  const corPrincipal = isOnline ? (hasAlarm ? 'crit' : 'ok') : 'off';
+
+  // ── Corpo do card por modelo ──────────────────────────────────────────
+  let corpo = null;
+
+  if (live.model_id === 65) {
+    // PhaseLOG: monitor de tensão trifásica (fases em t1/t2/t3, Vac)
+    corpo = `
+      <div class="card-temp ${corPrincipal}">${n(sensors.t1, 0)}<span class="unit">${sensors.t1 != null ? ' Vac' : ''}</span></div>
+      <div class="card-setpoint">Fases — R: <span>${n(sensors.t1, 0)}V</span> · S: <span>${n(sensors.t2, 0)}V</span> · T: <span>${n(sensors.t3, 0)}V</span></div>`;
+
+  } else if (live.model_id === 96) {
+    // RCK-862: rack — sucção/descarga do grupo 1
+    corpo = `
+      <div class="card-temp ${corPrincipal}">${n(sensors.p1)}<span class="unit">${sensors.p1 != null ? ' psi' : ''}</span></div>
+      <div class="card-setpoint">Sucção — T.sat: <span>${n(sensors.t_sat_p1)}°C</span> · SH: <span>${n(sensors.superheat)}°C</span></div>
+      <div class="card-setpoint">Descarga — <span>${n(sensors.p2)} psi</span> · SC: <span>${n(sensors.subcooling)}°C</span></div>
+      <div class="card-outputs">
+        <span class="output-pill ${outputs.refrigeration ? 'on' : ''}">🔵 Compressor</span>
+        <span class="output-pill ${outputs.fan ? 'on' : ''}">🌀 Ventilador</span>
+      </div>`;
+
+  } else if (live.model_id === 109) {
+    // VX-1050E: válvula de expansão eletrônica
+    corpo = `
+      <div class="card-temp ${corPrincipal}">${n(sensors.an1_pct)}<span class="unit">${sensors.an1_pct != null ? ' %' : ''}</span></div>
+      <div class="card-setpoint">Abertura da válvula · SH: <span>${n(sensors.superheat)}°C</span></div>
+      <div class="card-setpoint">P1: <span>${n(sensors.p1)} psi</span> · T.sat: <span>${n(sensors.t_sat_p1)}°C</span> · SP: <span>${n(sensors.setpoint)}°C</span></div>
+      <div class="card-outputs">
+        <span class="output-pill ${outputs.refrigeration ? 'on' : ''}">🔵 Compressor</span>
+        <span class="output-pill ${outputs.fan ? 'on' : ''}">🌀 Vent.</span>
+        <span class="output-pill ${outputs.defrost ? 'on defrost' : ''}">🔥 Degelo</span>
+      </div>`;
+
+  } else if (live.model_id === 78) {
+    // MT-543E: controlador de 4 estágios, 1 sensor
+    corpo = `
+      <div class="card-temp ${tempClass}">${tempStr}<span class="unit">${tempVal != null ? '°C' : ''}</span></div>
+      <div class="card-setpoint">SP Estágio 1: <span>${setptStr}</span></div>
+      <div class="card-outputs">
+        <span class="output-pill ${outputs.refrigeration ? 'on' : ''}">1º Estágio</span>
+        <span class="output-pill ${outputs.fan ? 'on' : ''}">2º Estágio</span>
+      </div>`;
+
+  } else if (live.model_id === 27) {
+    // AutoPID: controlador PID de temperatura
+    corpo = `
+      <div class="card-temp ${tempClass}">${tempStr}<span class="unit">${tempVal != null ? '°C' : ''}</span></div>
+      <div class="card-setpoint">SP: <span>${setptStr}</span> · Saída PID: <span>${n(sensors.an1_pct, 0)}%</span></div>`;
+  }
+
+  if (corpo !== null) {
+    el.innerHTML = cabecalho + corpo + rodapeAlarmes;
     el.addEventListener('click', () => openModal(inst, grupo));
     return el;
   }
 
+  // ── Card padrão (TC-900E, PCT-122E e demais) ──────────────────────────
   el.innerHTML = `
-    <div class="card-header">
-      <span class="card-name">${inst.nome_exibicao || live.name || '—'}</span>
-      <span class="card-status ${statusClass}">${statusLabel}</span>
-    </div>
+    ${cabecalho}
     <div class="card-temp ${tempClass}">
       ${tempStr}<span class="unit">${tempVal != null ? '°C' : ''}</span>
     </div>
     <div class="card-setpoint">SP: <span>${setptStr}</span></div>
     <div class="card-outputs">${pillsHtml}</div>
-    ${alarmsHtml ? `<div class="card-alarms">${alarmsHtml}</div>` : ''}
+    ${rodapeAlarmes}
   `;
   el.addEventListener('click', () => openModal(inst, grupo));
   return el;
@@ -798,21 +841,88 @@ async function openModal(inst, grupo) {
   document.getElementById('modalTitle').textContent =
     (inst.nome_exibicao || live.name || '—') + ' — ' + grupo.nome;
 
-  // PhaseLOG: modal com tensões trifásicas
+  // ── Modal específico por modelo ───────────────────────────────────────
+  const rodapePadrao = [
+    { l: 'Endereço RS-485', v: live.address ?? '—' },
+    { l: 'Status',          v: live.online ? '🟢 Online' : '🔴 Offline' },
+  ];
+  const fmtV = v => v != null ? v.toFixed(0) + ' Vac' : '—';
+  let rowsModelo = null, rotuloGrafico = null;
+
   if (live.model_id === 65) {
-    const rowsV = [
-      { l: 'Fase R',          v: sensors.t1 != null ? sensors.t1.toFixed(0) + ' Vac' : '—' },
-      { l: 'Fase S',          v: sensors.t2 != null ? sensors.t2.toFixed(0) + ' Vac' : '—' },
-      { l: 'Fase T',          v: sensors.t3 != null ? sensors.t3.toFixed(0) + ' Vac' : '—' },
-      { l: 'Modelo',          v: live.model_name || 'PhaseLOG plus' },
-      { l: 'Endereço RS-485', v: live.address ?? '—' },
-      { l: 'Status',          v: live.online ? '🟢 Online' : '🔴 Offline' },
+    // PhaseLOG — tensões trifásicas
+    rowsModelo = [
+      { l: 'Fase R', v: fmtV(sensors.t1) },
+      { l: 'Fase S', v: fmtV(sensors.t2) },
+      { l: 'Fase T', v: fmtV(sensors.t3) },
+      { l: 'Modelo', v: 'PhaseLOG plus' },
     ];
-    document.getElementById('detailGrid').innerHTML = rowsV.map(r =>
+    rotuloGrafico = 'Fase R (Vac)';
+
+  } else if (live.model_id === 96) {
+    // RCK-862 — rack (grupo 1)
+    rowsModelo = [
+      { l: 'P1 — Sucção',            v: fmt(sensors.p1, ' psi') },
+      { l: 'T. Saturação Sucção',    v: fmt(sensors.t_sat_p1, '°C') },
+      { l: 'Superaquecimento',        v: fmt(sensors.superheat, '°C') },
+      { l: 'T. Gás Sucção',          v: fmt(sensors.t1, '°C') },
+      { l: 'T. Fluido Secundário',   v: fmt(sensors.t3, '°C') },
+      { l: 'Setpoint Sucção',        v: sensors.setpoint != null ? sensors.setpoint : '—' },
+      { l: 'P2 — Descarga',          v: fmt(sensors.p2, ' psi') },
+      { l: 'T. Saturação Descarga',  v: fmt(sensors.t_sat_p2, '°C') },
+      { l: 'Subresfriamento',         v: fmt(sensors.subcooling, '°C') },
+      { l: 'T. Linha de Líquido',    v: fmt(sensors.t2, '°C') },
+      { l: 'Compressor 1',            v: out(outputs.refrigeration) },
+      { l: 'Ventilador Descarga',     v: out(outputs.fan) },
+      { l: 'Modelo',                  v: 'RCK-862 plus' },
+    ];
+    rotuloGrafico = 'T. Gás Sucção (°C)';
+
+  } else if (live.model_id === 109) {
+    // VX-1050E — válvula de expansão
+    rowsModelo = [
+      { l: 'Abertura da Válvula',  v: fmt(sensors.an1_pct, ' %') },
+      { l: 'P1 — Sucção',          v: fmt(sensors.p1, ' psi') },
+      { l: 'T. Saturação',         v: fmt(sensors.t_sat_p1, '°C') },
+      { l: 'Superaquecimento',      v: fmt(sensors.superheat, '°C') },
+      { l: 'T. Sucção (S3)',       v: fmt(sensors.t3, '°C') },
+      { l: 'Setpoint',              v: fmt(sensors.setpoint, '°C') },
+      { l: 'Compressor',            v: out(outputs.refrigeration) },
+      { l: 'Ventilador',            v: out(outputs.fan) },
+      { l: 'Degelo',                v: out(outputs.defrost) },
+      { l: 'Modelo',                v: 'VX-1050E plus' },
+    ];
+    rotuloGrafico = 'T. Sucção S3 (°C)';
+
+  } else if (live.model_id === 78) {
+    // MT-543E — 4 estágios
+    rowsModelo = [
+      { l: 'Temperatura',       v: fmt(sensors.t1, '°C') },
+      { l: 'Setpoint Estágio 1', v: fmt(sensors.setpoint, '°C') },
+      { l: '1º Estágio (OUT1)', v: out(outputs.refrigeration) },
+      { l: '2º Estágio (OUT2)', v: out(outputs.fan) },
+      { l: 'Modelo',            v: 'MT-543E plus' },
+    ];
+    rotuloGrafico = 'Temperatura (°C)';
+
+  } else if (live.model_id === 27) {
+    // AutoPID — controlador PID
+    rowsModelo = [
+      { l: 'Temperatura', v: fmt(sensors.t1, '°C') },
+      { l: 'Setpoint',    v: fmt(sensors.setpoint, '°C') },
+      { l: 'Saída PID',   v: fmt(sensors.an1_pct, ' %') },
+      { l: 'Modelo',      v: 'AutoPID plus' },
+    ];
+    rotuloGrafico = 'Temperatura (°C)';
+  }
+
+  if (rowsModelo !== null) {
+    const rows = [...rowsModelo, ...rodapePadrao];
+    document.getElementById('detailGrid').innerHTML = rows.map(r =>
       `<div class="detail-row"><span class="dl">${r.l}</span><span class="dv">${r.v}</span></div>`
     ).join('');
     document.getElementById('modalOverlay').classList.add('open');
-    if (live.id) loadHistory(live.id, 'Fase R (Vac)');
+    if (live.id) loadHistory(live.id, rotuloGrafico);
     return;
   }
 

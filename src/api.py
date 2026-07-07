@@ -129,6 +129,7 @@ async def get_overview() -> list[dict]:
                     "superheat", "subcooling",
                     "t_sat_p1", "t_sat_p2",
                     "setpoint",
+                    "an1_pct", "an2_pct",
                 )
                 sensors = {
                     c: valor for c in campos
