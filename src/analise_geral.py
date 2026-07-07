@@ -43,6 +43,14 @@ consistentemente é um risco mesmo dentro dos limites.
 - Se houver casos validados anteriores no mesmo equipamento, use-os: \
 "em ocorrência anterior neste equipamento, a causa confirmada foi X".
 - Unidades: pressões em PSI, temperaturas em °C, SH/SC em Kelvin (°C de diferença).
+- Regra específica para racks RCK-862: avalie a temperatura de saturação da \
+DESCARGA (t_sat_p2 = condensação). Acima de ~48°C o sistema está saindo da \
+faixa ideal de condensação — sinalize SEMPRE como ponto a ser avaliado \
+(status geral no mínimo 🟡 amarelo, item em Riscos Potenciais), recomendando \
+verificação do condensador (limpeza, ventiladores, recirculação de ar) e da \
+carga térmica. Acima de ~55°C trate como problema ativo (🔴). Aplique o mesmo \
+raciocínio à tendência: condensação subindo consistentemente merece alerta \
+mesmo abaixo do limite.
 - Responda em português do Brasil, em markdown, no formato EXATO:
 
 ## 🟢/🟡/🔴 Status Geral
