@@ -116,8 +116,59 @@ def get_values(instrument_id: int) -> dict[str, Any]:
 #   PhaseLOG E plus — monitor de tensão/fases
 #   AutoPID plus   — controlador PID (torre de resfriamento)
 MODEL_CODE_MAPS: dict[int, dict[str, str]] = {
-    # Preenchido em campo com os códigos reais do log. Exemplo:
-    # 130: {"p1": "PressureSuction1", "superheat": "Superheat1"},
+    # Códigos levantados em campo (scan de 07/07/2026, cliente XANDO):
+
+    # RCK-862 plus (modelId=96) — usa sucção/descarga do grupo 1 como principal
+    96: {
+        "p1":         "Suction1Pressure",
+        "t_sat_p1":   "Suction1PressureAsTemperature",
+        "superheat":  "Suction1Superheat",
+        "t1":         "Suction1Temperature",
+        "t3":         "Suction1SecondaryInputTemperature",   # fluido secundário (entrada)
+        "setpoint":   "Suction1Setpoint",
+        "p2":         "Discharge1Pressure",
+        "t_sat_p2":   "Discharge1PressureAsTemperature",
+        "subcooling": "Discharge1Subcooling",
+        "t2":         "Discharge1Temperature",               # linha de líquido
+        "out_refrigeration": "Suction1Comp1OutIsOn",
+        "out_fan":           "Discharge1Fan1IsOn",
+    },
+
+    # VX-1050E plus (modelId=109) — válvula de expansão eletrônica
+    109: {
+        "p1":        "PressureP1",
+        "t_sat_p1":  "TemperatureSaturation",
+        "superheat": "SuperHeating",
+        "t3":        "TemperatureS3",       # único sensor de temp. ativo no cliente
+        "setpoint":  "CurrentSetpoint",
+        "an1_pct":   "ValveOpening",        # abertura da válvula (%)
+        "out_refrigeration": "OutputCompressor",
+        "out_fan":           "OutputFan",
+        "out_defrost":       "OutputDefrost",
+        "alm_high_t1":       "IsAlarmHighTempS1",
+        "alm_low_t1":        "IsAlarmLowTempS1",
+        "alm_door":          "IsAlarmOpenDoor",
+    },
+
+    # MT-543E plus (modelId=78) — controlador 4 estágios, 1 sensor
+    78: {
+        "t1":       "Temperature",
+        "setpoint": "FncStage1Setpoint",
+        "out_refrigeration": "IsOut1",
+        "out_fan":           "IsOut2",
+    },
+
+    # PhaseLOG plus (modelId=65) — monitor de tensão; sem grandezas térmicas.
+    # Mapeamento vazio de propósito: bloqueia o fallback genérico de casar
+    # códigos errados. Card mostra nome/status/alarmes.
+    65: {},
+
+    # AutoPID plus (modelId=27) — controlador PID de temperatura
+    27: {
+        "t1":       "Temperature",
+        "setpoint": "Setpoint",
+        "an1_pct":  "OutputPercent",
+    },
     #
     # Plano de mapeamento (semântica confirmada nos manuais em 06/07/2026):
     #
