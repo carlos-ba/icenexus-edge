@@ -659,6 +659,26 @@ function renderCard(inst, grupo) {
 
   const el = document.createElement('div');
   el.className = cardClass;
+
+  // PhaseLOG (modelId 65): monitor de tensão trifásica — fases em t1/t2/t3 (Vac)
+  const isPhaseLog = live.model_id === 65;
+  if (isPhaseLog) {
+    const fr = sensors.t1, fs = sensors.t2, ft = sensors.t3;
+    el.innerHTML = `
+      <div class="card-header">
+        <span class="card-name">${inst.nome_exibicao || live.name || '—'}</span>
+        <span class="card-status ${statusClass}">${statusLabel}</span>
+      </div>
+      <div class="card-temp ${isOnline ? 'ok' : 'off'}">
+        ${fr != null ? fr.toFixed(0) : '—'}<span class="unit">${fr != null ? ' Vac' : ''}</span>
+      </div>
+      <div class="card-setpoint">Fases — R: <span>${fr != null ? fr.toFixed(0) + 'V' : '—'}</span> · S: <span>${fs != null ? fs.toFixed(0) + 'V' : '—'}</span> · T: <span>${ft != null ? ft.toFixed(0) + 'V' : '—'}</span></div>
+      ${alarmsHtml ? `<div class="card-alarms">${alarmsHtml}</div>` : ''}
+    `;
+    el.addEventListener('click', () => openModal(inst, grupo));
+    return el;
+  }
+
   el.innerHTML = `
     <div class="card-header">
       <span class="card-name">${inst.nome_exibicao || live.name || '—'}</span>
@@ -778,6 +798,24 @@ async function openModal(inst, grupo) {
   document.getElementById('modalTitle').textContent =
     (inst.nome_exibicao || live.name || '—') + ' — ' + grupo.nome;
 
+  // PhaseLOG: modal com tensões trifásicas
+  if (live.model_id === 65) {
+    const rowsV = [
+      { l: 'Fase R',          v: sensors.t1 != null ? sensors.t1.toFixed(0) + ' Vac' : '—' },
+      { l: 'Fase S',          v: sensors.t2 != null ? sensors.t2.toFixed(0) + ' Vac' : '—' },
+      { l: 'Fase T',          v: sensors.t3 != null ? sensors.t3.toFixed(0) + ' Vac' : '—' },
+      { l: 'Modelo',          v: live.model_name || 'PhaseLOG plus' },
+      { l: 'Endereço RS-485', v: live.address ?? '—' },
+      { l: 'Status',          v: live.online ? '🟢 Online' : '🔴 Offline' },
+    ];
+    document.getElementById('detailGrid').innerHTML = rowsV.map(r =>
+      `<div class="detail-row"><span class="dl">${r.l}</span><span class="dv">${r.v}</span></div>`
+    ).join('');
+    document.getElementById('modalOverlay').classList.add('open');
+    if (live.id) loadHistory(live.id, 'Fase R (Vac)');
+    return;
+  }
+
   const hasPressure = sensors.p1 != null || sensors.p2 != null;
   const rows = [
     { l: 'T1 — Sonda 1',      v: fmt(sensors.t1,        '°C') },
@@ -806,7 +844,7 @@ async function openModal(inst, grupo) {
   if (live.id) loadHistory(live.id);
 }
 
-async function loadHistory(instrId) {
+async function loadHistory(instrId, rotulo) {
   try {
     const res  = await fetch(`${API}/instruments/${instrId}/history?limit=120`);
     const data = await res.json();
@@ -817,7 +855,7 @@ async function loadHistory(instrId) {
       data: {
         labels,
         datasets: [
-          { label: 'T1 (°C)', data: data.map(r => r.t1), borderColor: '#00b4d8', backgroundColor: 'rgba(0,180,216,.08)', borderWidth: 2, pointRadius: 0, tension: .3, fill: true },
+          { label: rotulo || 'T1 (°C)', data: data.map(r => r.t1), borderColor: '#00b4d8', backgroundColor: 'rgba(0,180,216,.08)', borderWidth: 2, pointRadius: 0, tension: .3, fill: true },
           { label: 'Setpoint', data: data.map(r => r.setpoint), borderColor: '#ffd166', borderWidth: 1.5, borderDash: [5,3], pointRadius: 0 },
         ]
       },

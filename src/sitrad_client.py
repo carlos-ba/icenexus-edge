@@ -158,10 +158,14 @@ MODEL_CODE_MAPS: dict[int, dict[str, str]] = {
         "out_fan":           "IsOut2",
     },
 
-    # PhaseLOG plus (modelId=65) — monitor de tensão; sem grandezas térmicas.
-    # Mapeamento vazio de propósito: bloqueia o fallback genérico de casar
-    # códigos errados. Card mostra nome/status/alarmes.
-    65: {},
+    # PhaseLOG plus (modelId=65) — monitor de tensão trifásica.
+    # As tensões das fases R/S/T viajam nos campos t1/t2/t3 (em Vac);
+    # o dashboard renderiza este modelo com unidade V (ver index.html).
+    65: {
+        "t1": "PhaseR",
+        "t2": "PhaseS",
+        "t3": "PhaseT",
+    },
 
     # AutoPID plus (modelId=27) — controlador PID de temperatura
     27: {
